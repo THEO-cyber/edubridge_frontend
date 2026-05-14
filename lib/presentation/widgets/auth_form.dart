@@ -2,7 +2,15 @@ import 'package:flutter/material.dart';
 
 class AuthForm extends StatefulWidget {
   final bool isLogin;
-  final void Function(String email, String password, String username, String firstName, String lastName, String? role) onSubmit;
+  final void Function(
+    String email,
+    String password,
+    String username,
+    String firstName,
+    String lastName,
+    String? role,
+  )
+  onSubmit;
   const AuthForm({super.key, required this.isLogin, required this.onSubmit});
 
   @override
@@ -13,7 +21,7 @@ class _AuthFormState extends State<AuthForm> {
   final _formKey = GlobalKey<FormState>();
   String _email = '';
   String _password = '';
-  String _role = 'student';
+  String _role = 'STUDENT';
   String _fullName = '';
 
   @override
@@ -26,7 +34,8 @@ class _AuthFormState extends State<AuthForm> {
           if (!widget.isLogin) ...[
             TextFormField(
               decoration: const InputDecoration(labelText: 'Full Name'),
-              validator: (value) => value != null && value.trim().split(' ').length >= 2
+              validator: (value) =>
+                  value != null && value.trim().split(' ').length >= 2
                   ? null
                   : 'Enter your full name',
               onSaved: (value) => _fullName = value?.trim() ?? '',
@@ -55,10 +64,10 @@ class _AuthFormState extends State<AuthForm> {
             DropdownButtonFormField<String>(
               value: _role,
               items: const [
-                DropdownMenuItem(value: 'student', child: Text('Student')),
-                DropdownMenuItem(value: 'teacher', child: Text('Teacher')),
+                DropdownMenuItem(value: 'STUDENT', child: Text('Student')),
+                DropdownMenuItem(value: 'INSTRUCTOR', child: Text('Teacher')),
               ],
-              onChanged: (value) => setState(() => _role = value ?? 'student'),
+              onChanged: (value) => setState(() => _role = value ?? 'STUDENT'),
               decoration: const InputDecoration(labelText: 'Role'),
             ),
           ],
@@ -72,7 +81,9 @@ class _AuthFormState extends State<AuthForm> {
                 } else {
                   final parts = _fullName.split(' ');
                   final firstName = parts.isNotEmpty ? parts.first : _fullName;
-                  final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+                  final lastName = parts.length > 1
+                      ? parts.sublist(1).join(' ')
+                      : '';
                   final username = _fullName;
                   widget.onSubmit(
                     _email,

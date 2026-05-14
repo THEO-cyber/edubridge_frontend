@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/entities/review_entity.dart';
 import '../../domain/usecases/fetch_reviews_usecase.dart';
 import '../../domain/usecases/post_review_usecase.dart';
 
@@ -24,7 +25,7 @@ class ReviewInitial extends ReviewState {}
 class ReviewLoading extends ReviewState {}
 
 class ReviewLoaded extends ReviewState {
-  final List<Map<String, dynamic>> reviews;
+  final List<ReviewEntity> reviews;
   ReviewLoaded(this.reviews);
 }
 

@@ -1,6 +1,8 @@
+import '../entities/review_entity.dart';
+
 abstract class ReviewRepository {
-  Future<List<Map<String, dynamic>>> fetchReviews(String courseId);
-  Future<void> postReview(
+  Future<List<ReviewEntity>> fetchReviews(String courseId);
+  Future<ReviewEntity> postReview(
     String courseId,
     String review,
     int rating,

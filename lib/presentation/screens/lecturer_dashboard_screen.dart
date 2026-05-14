@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../core/secure_storage.dart';
+import 'lecturer/lecturer_course_management_screen.dart';
 
 class LecturerDashboardScreen extends StatefulWidget {
   const LecturerDashboardScreen({super.key});
@@ -112,7 +114,15 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),
               title: const Text('Logout'),
-              onTap: () {},
+              onTap: () async {
+                await SecureStorage.deleteAllTokens();
+                if (mounted) {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    '/lecturer-login',
+                    (route) => false,
+                  );
+                }
+              },
             ),
           ],
         ),
@@ -162,7 +172,6 @@ class _DashboardHome extends StatelessWidget {
         ); // Increased for appbar controls
         final statFontSize = isSmall ? 16.0 : 22.0;
         final statLabelSize = isSmall ? 12.0 : 15.0;
-        final cardHeight = isSmall ? 130.0 : 170.0;
         final cardMaxWidth = isSmall ? 220.0 : 320.0;
 
         return Column(
@@ -356,7 +365,13 @@ class _DashboardHome extends StatelessWidget {
                             ),
                           ),
                           TextButton.icon(
-                            onPressed: () {},
+                            onPressed: () {
+                              final dashboardState = context
+                                  .findAncestorStateOfType<
+                                    _LecturerDashboardScreenState
+                                  >();
+                              dashboardState?._onNavTap(1);
+                            },
                             icon: Icon(Icons.add, size: isSmall ? 14 : 18),
                             label: Text(
                               'Upload Course',
@@ -632,21 +647,20 @@ class _DashboardHome extends StatelessWidget {
 class _CoursesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(child: Text('Upload & Manage Courses'));
+    return const LecturerCourseManagementScreen();
   }
 }
 
 class _LiveClassesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(child: Text('Live Class Requests'));
-  }
-}
-
-class _PaymentsPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(child: Text('Payments & Earnings'));
+    return Center(
+      child: ElevatedButton.icon(
+        onPressed: () => Navigator.of(context).pushNamed('/live-sessions'),
+        icon: const Icon(Icons.video_call),
+        label: const Text('Open Live Session Requests'),
+      ),
+    );
   }
 }
 
@@ -682,11 +696,9 @@ class _ProfilePageState extends State<_ProfilePage> {
       ),
       child: SafeArea(
         child: SingleChildScrollView(
-          
           child: Column(
-           
             children: [
-              SizedBox(height: MediaQuery.of(context).size.height * 0.05,),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.05),
               // Decorative header with curve
               Stack(
                 children: [
@@ -1013,18 +1025,4 @@ class _ProfileHeaderClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class _CalendarPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(child: Text('Class Calendar'));
-  }
-}
-
-class _WithdrawPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(child: Text('Withdraw Earnings'));
-  }
 }

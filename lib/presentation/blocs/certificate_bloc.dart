@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/entities/certificate_entity.dart';
 import '../../domain/usecases/fetch_certificates_usecase.dart';
 
 abstract class CertificateEvent {}
@@ -15,7 +16,7 @@ class CertificateInitial extends CertificateState {}
 class CertificateLoading extends CertificateState {}
 
 class CertificateLoaded extends CertificateState {
-  final List<Map<String, dynamic>> certificates;
+  final List<CertificateEntity> certificates;
   CertificateLoaded(this.certificates);
 }
 

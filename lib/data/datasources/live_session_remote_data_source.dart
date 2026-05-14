@@ -51,4 +51,23 @@ class LiveSessionRemoteDataSource {
       throw ApiException('Failed to join live session', response.statusCode);
     }
   }
+
+  Future<Map<String, dynamic>> confirmLiveSessionRequest(
+    String requestId,
+    String token,
+  ) async {
+    final response = await http.post(
+      Uri.parse(
+        ApiConstants.baseUrl + ApiConstants.liveSessionConfirm(requestId),
+      ),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw ApiException('Failed to confirm live session', response.statusCode);
+  }
 }

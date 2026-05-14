@@ -18,7 +18,14 @@ class RegisterEvent extends AuthEvent {
   final String username;
   final String firstName;
   final String lastName;
-  RegisterEvent(this.email, this.password, this.role, this.username, this.firstName, this.lastName);
+  RegisterEvent(
+    this.email,
+    this.password,
+    this.role,
+    this.username,
+    this.firstName,
+    this.lastName,
+  );
 }
 
 abstract class AuthState {}
@@ -44,20 +51,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this.loginUseCase, required this.registerUseCase})
     : super(AuthInitial()) {
     on<LoginEvent>((event, emit) async {
+      print('[DEBUG AUTH BLOC] LoginEvent triggered for: ${event.email}');
       emit(AuthLoading());
       try {
+        print('[DEBUG AUTH BLOC] Calling loginUseCase...');
         final user = await loginUseCase(event.email, event.password);
+        print('[DEBUG AUTH BLOC] Login successful, user role: ${user.role}');
         emit(AuthSuccess(user));
       } catch (e) {
-        // Print backend error to terminal for debugging
-        // ignore: avoid_print
         print('[AUTH_BLOC LOGIN ERROR] ${e.toString()}');
         emit(AuthFailure('Invalid email or password. Please try again.'));
       }
     });
     on<RegisterEvent>((event, emit) async {
+      print(
+        '[DEBUG AUTH BLOC] RegisterEvent triggered for: ${event.email}, role: ${event.role}',
+      );
       emit(AuthLoading());
       try {
+        print('[DEBUG AUTH BLOC] Calling registerUseCase...');
         final user = await registerUseCase(
           event.email,
           event.password,
@@ -66,10 +78,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           event.firstName,
           event.lastName,
         );
+        print('[DEBUG AUTH BLOC] Register successful, user role: ${user.role}');
         emit(AuthSuccess(user));
       } catch (e) {
-        // Print backend error to terminal for debugging
-        // ignore: avoid_print
         print('[AUTH_BLOC REGISTER ERROR] ${e.toString()}');
         emit(AuthFailure('Registration failed. Please try again.'));
       }

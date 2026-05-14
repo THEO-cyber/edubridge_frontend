@@ -1,7 +1,6 @@
 import 'package:edubridge/presentation/blocs/auth_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../blocs/auth_bloc.dart';
 
 class UserRegisterScreen extends StatefulWidget {
   const UserRegisterScreen({Key? key}) : super(key: key);
@@ -196,7 +195,7 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                                   RegisterEvent(
                                     email,
                                     password,
-                                    'USER',
+                                    'STUDENT',
                                     username,
                                     firstName,
                                     lastName,
@@ -230,29 +229,36 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                               ),
                       ),
                     ),
-                 
-            const SizedBox(height: 22),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  "Already have an account?",
-                  style: TextStyle(color: Colors.blueGrey),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/user-login');
-                  },
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+
+                    const SizedBox(height: 22),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          "Already have an account?",
+                          style: TextStyle(color: Colors.blueGrey),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/user-login',
+                            );
+                          },
+                          child: const Text(
+                            'Login',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
-          ]);
-  }),
+          ),
+        ),
       ),
-      )));
+    );
   }
 }

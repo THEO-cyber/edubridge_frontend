@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../blocs/enrollment_bloc_provider.dart';
+import 'course_detail_screen.dart';
 
 class TopCoursesPage extends StatelessWidget {
   const TopCoursesPage({super.key});
@@ -55,7 +57,7 @@ class TopCoursesPage extends StatelessWidget {
               leading: course['image'] == null
                   ? const Icon(Icons.menu_book, size: 40, color: Colors.blue)
                   : Image.network(
-                      course['image'] as String? ?? '',
+                      course['image'] ?? '',
                       width: 50,
                       height: 50,
                       fit: BoxFit.cover,
@@ -66,7 +68,18 @@ class TopCoursesPage extends StatelessWidget {
               ),
               subtitle: Text('By ${course['instructor'] ?? ''}'),
               onTap: () {
-                // TODO: Navigate to course detail
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => EnrollmentBlocProvider(
+                      child: CourseDetailScreen(
+                        courseId: 'top-course-$index',
+                        title: course['title'] ?? '',
+                        description:
+                            '${course['title'] ?? 'This course'} by ${course['instructor'] ?? 'our instructor'}',
+                      ),
+                    ),
+                  ),
+                );
               },
             ),
           );

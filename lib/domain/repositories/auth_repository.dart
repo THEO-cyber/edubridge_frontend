@@ -11,4 +11,5 @@ abstract class AuthRepository {
     String lastName,
   );
   Future<UserEntity> getMe(String token);
+  Future<String> refreshToken();
 }

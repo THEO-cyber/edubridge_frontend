@@ -8,7 +8,7 @@ class RoleRouter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (role == 'teacher') {
+    if (role == 'INSTRUCTOR') {
       return const TeacherDashboard();
     }
     return const StudentDashboard();

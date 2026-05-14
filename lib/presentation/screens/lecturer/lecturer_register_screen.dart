@@ -14,7 +14,8 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
 
@@ -24,30 +25,73 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
     final horizontalPadding = isSmall ? 18.0 : 32.0;
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: horizontalPadding,
-              vertical: 32,
-            ),
-            child: AuthForm(
-              isLogin: false,
-              onSubmit: (email, password, username, firstName, lastName, role) {
-                context.read<AuthBloc>().add(
-                  RegisterEvent(
-                    email,
-                    password,
-                    'LECTURER',
-                    username,
-                    firstName,
-                    lastName,
+      body: BlocConsumer<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state is AuthFailure) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(state.message)));
+          }
+          if (state is AuthSuccess) {
+            final normalizedRole = state.user.role.toLowerCase();
+            if (normalizedRole == 'lecturer' ||
+                normalizedRole == 'teacher' ||
+                normalizedRole == 'instructor') {
+              Navigator.pushReplacementNamed(context, '/lecturer-dashboard');
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Registration succeeded, but account is not lecturer.',
                   ),
-                );
-              },
+                ),
+              );
+            }
+          }
+        },
+        builder: (context, state) {
+          return Center(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: 32,
+                ),
+                child: Column(
+                  children: [
+                    AuthForm(
+                      isLogin: false,
+                      onSubmit:
+                          (
+                            email,
+                            password,
+                            username,
+                            firstName,
+                            lastName,
+                            role,
+                          ) {
+                            context.read<AuthBloc>().add(
+                              RegisterEvent(
+                                email,
+                                password,
+                                'INSTRUCTOR',
+                                username,
+                                firstName,
+                                lastName,
+                              ),
+                            );
+                          },
+                    ),
+                    if (state is AuthLoading) ...[
+                      const SizedBox(height: 16),
+                      const CircularProgressIndicator(),
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

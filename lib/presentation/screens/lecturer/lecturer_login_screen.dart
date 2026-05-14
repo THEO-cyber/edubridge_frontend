@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/auth_bloc.dart';
-import '../lecturer_dashboard_screen.dart';
 
 class LecturerLoginScreen extends StatefulWidget {
   const LecturerLoginScreen({Key? key}) : super(key: key);
@@ -42,12 +41,13 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
                   );
                 } else if (state is AuthSuccess) {
                   // Only allow lecturers to access dashboard
-                  if (state.user.role == 'lecturer') {
-                    Navigator.pushReplacement(
+                  final normalizedRole = state.user.role.toLowerCase();
+                  if (normalizedRole == 'lecturer' ||
+                      normalizedRole == 'teacher' ||
+                      normalizedRole == 'instructor') {
+                    Navigator.pushReplacementNamed(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const LecturerDashboardScreen(),
-                      ),
+                      '/lecturer-dashboard',
                     );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(

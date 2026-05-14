@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/entities/course_entity.dart';
 import '../../domain/usecases/fetch_wishlist_usecase.dart';
 import '../../domain/usecases/add_to_wishlist_usecase.dart';
 
@@ -22,7 +23,7 @@ class WishlistInitial extends WishlistState {}
 class WishlistLoading extends WishlistState {}
 
 class WishlistLoaded extends WishlistState {
-  final List<Map<String, dynamic>> wishlist;
+  final List<CourseEntity> wishlist;
   WishlistLoaded(this.wishlist);
 }
 

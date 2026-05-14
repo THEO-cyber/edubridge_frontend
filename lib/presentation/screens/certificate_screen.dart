@@ -17,6 +17,7 @@ class CertificateScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           final token = snapshot.data!;
+          context.read<CertificateBloc>().add(LoadCertificatesEvent(token));
           return BlocBuilder<CertificateBloc, CertificateState>(
             builder: (context, state) {
               if (state is CertificateLoading) {
@@ -32,16 +33,16 @@ class CertificateScreen extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final cert = certificates[index];
                     return ListTile(
-                      title: Text(cert['title'] ?? ''),
-                      subtitle: Text(cert['date'] ?? ''),
-                      trailing: cert['url'] != null
-                          ? IconButton(
-                              icon: const Icon(Icons.download),
-                              onPressed: () {
-                                // TODO: Implement download/view
-                              },
-                            )
-                          : null,
+                      title: Text(cert.courseName),
+                      subtitle: Text(
+                        cert.issuedAt.toLocal().toString().split(' ')[0],
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.download),
+                        onPressed: () {
+                          // TODO: Implement download/view
+                        },
+                      ),
                     );
                   },
                 );

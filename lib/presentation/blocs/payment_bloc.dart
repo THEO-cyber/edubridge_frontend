@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/usecases/create_payment_intent_usecase.dart';
+import '../../data/repositories/payment_repository_impl.dart';
 
 abstract class PaymentEvent {}
 
@@ -7,6 +8,11 @@ class CreatePaymentIntentEvent extends PaymentEvent {
   final String courseId;
   final String token;
   CreatePaymentIntentEvent(this.courseId, this.token);
+}
+
+class FetchPaymentHistoryEvent extends PaymentEvent {
+  final String token;
+  FetchPaymentHistoryEvent(this.token);
 }
 
 abstract class PaymentState {}
@@ -20,6 +26,11 @@ class PaymentSuccess extends PaymentState {
   PaymentSuccess(this.paymentIntent);
 }
 
+class PaymentHistoryLoaded extends PaymentState {
+  final List<Map<String, dynamic>> payments;
+  PaymentHistoryLoaded(this.payments);
+}
+
 class PaymentFailure extends PaymentState {
   final String message;
   PaymentFailure(this.message);
@@ -27,8 +38,12 @@ class PaymentFailure extends PaymentState {
 
 class PaymentBloc extends Bloc<PaymentEvent, PaymentState> {
   final CreatePaymentIntentUseCase createPaymentIntentUseCase;
-  PaymentBloc({required this.createPaymentIntentUseCase})
-    : super(PaymentInitial()) {
+  final PaymentRepositoryImpl? paymentRepository;
+
+  PaymentBloc({
+    required this.createPaymentIntentUseCase,
+    this.paymentRepository,
+  }) : super(PaymentInitial()) {
     on<CreatePaymentIntentEvent>((event, emit) async {
       emit(PaymentLoading());
       try {
@@ -37,6 +52,22 @@ class PaymentBloc extends Bloc<PaymentEvent, PaymentState> {
           event.token,
         );
         emit(PaymentSuccess(intent));
+      } catch (e) {
+        emit(PaymentFailure(e.toString()));
+      }
+    });
+
+    on<FetchPaymentHistoryEvent>((event, emit) async {
+      emit(PaymentLoading());
+      try {
+        if (paymentRepository != null) {
+          final payments = await paymentRepository!.fetchPaymentHistory(
+            event.token,
+          );
+          emit(PaymentHistoryLoaded(payments));
+        } else {
+          emit(PaymentFailure('Payment repository not initialized'));
+        }
       } catch (e) {
         emit(PaymentFailure(e.toString()));
       }

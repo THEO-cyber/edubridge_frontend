@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/secure_storage.dart';
+import '../../domain/entities/review_entity.dart';
 import '../blocs/review_bloc.dart';
 
 class ReviewScreen extends StatefulWidget {
@@ -56,7 +57,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
               if (state is ReviewLoading) {
                 return const Center(child: CircularProgressIndicator());
               }
-              List<Map<String, dynamic>> reviews = [];
+              List<ReviewEntity> reviews = [];
               if (state is ReviewLoaded) {
                 reviews = state.reviews;
               }
@@ -68,8 +69,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       itemBuilder: (context, index) {
                         final review = reviews[index];
                         return ListTile(
-                          title: Text(review['review'] ?? ''),
-                          subtitle: Text('Rating: ${review['rating'] ?? ''}'),
+                          title: Text(review.comment),
+                          subtitle: Text('Rating: ${review.rating}'),
                         );
                       },
                     ),

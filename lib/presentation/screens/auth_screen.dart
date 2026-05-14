@@ -14,12 +14,28 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   bool isLogin = true;
 
-  void _submit(String email, String password, String username, String firstname, String lastname, String? role) {
+  void _submit(
+    String email,
+    String password,
+    String username,
+    String firstname,
+    String lastname,
+    String? role,
+  ) {
     final bloc = context.read<AuthBloc>();
     if (isLogin) {
       bloc.add(LoginEvent(email, password));
     } else {
-      bloc.add(RegisterEvent(email, password, username, firstname, lastname, role ?? 'student'));
+      bloc.add(
+        RegisterEvent(
+          email,
+          password,
+          username,
+          firstname,
+          lastname,
+          role ?? 'STUDENT',
+        ),
+      );
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/secure_storage.dart';
+import '../../domain/entities/course_entity.dart';
 import '../blocs/wishlist_bloc.dart';
 
 class WishlistScreen extends StatelessWidget {
@@ -39,7 +40,7 @@ class WishlistScreen extends StatelessWidget {
               if (state is WishlistLoading) {
                 return const Center(child: CircularProgressIndicator());
               }
-              List<Map<String, dynamic>> wishlist = [];
+              List<CourseEntity> wishlist = [];
               if (state is WishlistLoaded) {
                 wishlist = state.wishlist;
               }
@@ -48,8 +49,8 @@ class WishlistScreen extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final item = wishlist[index];
                   return ListTile(
-                    title: Text(item['title'] ?? ''),
-                    subtitle: Text(item['description'] ?? ''),
+                    title: Text(item.title),
+                    subtitle: Text(item.description),
                   );
                 },
               );

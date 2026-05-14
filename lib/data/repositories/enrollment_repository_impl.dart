@@ -14,4 +14,9 @@ class EnrollmentRepositoryImpl implements EnrollmentRepository {
   Future<void> unenrollFromCourse(String enrollmentId, String token) async {
     await remoteDataSource.unenrollFromCourse(enrollmentId, token);
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchEnrollments(String token) async {
+    return await remoteDataSource.fetchEnrollments(token);
+  }
 }

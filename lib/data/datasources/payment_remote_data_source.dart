@@ -36,12 +36,51 @@ class PaymentRemoteDataSource {
     );
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return List<Map<String, dynamic>>.from(data);
+      return List<Map<String, dynamic>>.from(
+        data is List ? data : (data['payments'] ?? []),
+      );
     } else {
       throw ApiException(
         'Failed to fetch payment history',
         response.statusCode,
       );
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyPayment(
+    String courseId,
+    String token,
+  ) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/payments/verify'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'courseId': courseId}),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw ApiException('Failed to verify payment', response.statusCode);
+    }
+  }
+
+  Future<void> applyCoupon(
+    String couponCode,
+    String courseId,
+    String token,
+  ) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.baseUrl + ApiConstants.couponsApply),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'couponCode': couponCode, 'courseId': courseId}),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ApiException('Failed to apply coupon', response.statusCode);
     }
   }
 }

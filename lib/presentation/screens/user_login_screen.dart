@@ -38,8 +38,7 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                   );
                 } else if (state is AuthSuccess) {
                   print("Login Successful");
-                  // Navigate to landing page after user login
-                  Navigator.pushReplacementNamed(context, '/');
+                  Navigator.pushReplacementNamed(context, '/student-dashboard');
                 }
               },
               builder: (context, state) {

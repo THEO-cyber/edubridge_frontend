@@ -1,3 +1,5 @@
+import '../entities/certificate_entity.dart';
+
 abstract class CertificateRepository {
-  Future<List<Map<String, dynamic>>> fetchCertificates(String token);
+  Future<List<CertificateEntity>> fetchCertificates(String token);
 }

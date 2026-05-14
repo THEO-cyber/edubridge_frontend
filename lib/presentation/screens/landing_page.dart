@@ -1,15 +1,7 @@
-import 'package:edubridge/presentation/screens/top_courses_page.dart';
 import 'package:flutter/material.dart';
-import 'top_courses_page.dart';
 
 class LandingPage extends StatelessWidget {
   LandingPage({super.key});
-
-  final List<Map<String, dynamic>> _suggestions = [
-    {'title': 'Flutter & Dart - The Complete Guide', 'instructor': 'Jane Doe'},
-    {'title': 'Business Fundamentals', 'instructor': 'John Smith'},
-    {'title': 'UI/UX Design Masterclass', 'instructor': 'Emily White'},
-  ];
 
   final GlobalKey _topCoursesKey = GlobalKey();
 
@@ -128,7 +120,7 @@ class LandingPage extends StatelessWidget {
                 Icon(Icons.lightbulb, color: Colors.amber[700]),
                 const SizedBox(width: 8),
                 Text(
-                  'Suggestions',
+                  'Quick Actions',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ],
@@ -144,50 +136,56 @@ class LandingPage extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
+
                   elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.school,
-                          color: Colors.orange,
-                          size: 32,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'Enroll as Lecturer',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Share your knowledge and earn by teaching students worldwide.',
-                                style: TextStyle(fontSize: 13),
-                              ),
-                            ],
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/lecturer-login');
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.emoji_events,
+                            color: Colors.amber,
+                            size: 32,
                           ),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'My Certificates',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'View course completions and access earned certificates.',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ],
                             ),
                           ),
-                          onPressed: () {
-                            Navigator.of(context).pushNamed('/lecturer-login');
-                          },
-                          child: const Text('Get Started'),
-                        ),
-                      ],
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber[700],
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/certificates');
+                            },
+                            child: const Text('Open'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -204,19 +202,19 @@ class LandingPage extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.star, color: Colors.blue, size: 32),
+                        const Icon(Icons.videocam, color: Colors.red, size: 32),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
                               Text(
-                                'Try a Top Course',
+                                'Live Sessions',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                               SizedBox(height: 2),
                               Text(
-                                'Explore our most popular courses handpicked for you.',
+                                'Check upcoming sessions and join live classes from one place.',
                                 style: TextStyle(fontSize: 13),
                               ),
                             ],
@@ -225,11 +223,7 @@ class LandingPage extends StatelessWidget {
                         IconButton(
                           icon: const Icon(Icons.arrow_forward_ios),
                           onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => TopCoursesPage(),
-                              ),
-                            );
+                            Navigator.of(context).pushNamed('/live-sessions');
                           },
                         ),
                       ],
@@ -250,8 +244,8 @@ class LandingPage extends StatelessWidget {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.recommend,
-                          color: Colors.green,
+                          Icons.notifications_active,
+                          color: Colors.blue,
                           size: 32,
                         ),
                         const SizedBox(width: 16),
@@ -260,24 +254,74 @@ class LandingPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
                               Text(
-                                'Get Personalized Recommendations',
+                                'Notifications',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                               SizedBox(height: 2),
                               Text(
-                                'Sign in to get course suggestions tailored to your interests.',
+                                'Review reminders, updates, and recent activity in one feed.',
                                 style: TextStyle(fontSize: 13),
                               ),
                             ],
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.login),
+                          icon: const Icon(Icons.arrow_forward_ios),
                           onPressed: () {
-                            Navigator.of(context).pushNamed('/profile');
+                            Navigator.of(context).pushNamed('/notifications');
                           },
                         ),
                       ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 2,
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/chat');
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.support_agent,
+                            color: Colors.green,
+                            size: 32,
+                          ),
+                          const SizedBox(width: 16),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Support Chat',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Open the student support room to ask questions and get help.',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_forward_ios),
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/chat');
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

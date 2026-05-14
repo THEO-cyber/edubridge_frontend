@@ -20,15 +20,21 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     SecureStorage.getToken().then((token) {
+      print('[DEBUG CHAT] Token retrieved: ${token != null ? 'YES' : 'NO'}');
       if (token != null) {
+        print('[DEBUG CHAT] Setting token and connecting...');
         setState(() => _token = token);
         _chat.connect(token);
         _chat.joinRoom(widget.roomId);
+        print('[DEBUG CHAT] Joined room: ${widget.roomId}');
         _chat.onMessage((data) {
+          print('[DEBUG CHAT] Message received: $data');
           setState(() {
             _messages.add(data);
           });
         });
+      } else {
+        print('[DEBUG CHAT] ERROR: No token available');
       }
     });
   }
@@ -42,8 +48,15 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _sendMessage() {
-    if (_controller.text.trim().isEmpty) return;
-    _chat.sendMessage(widget.roomId, _controller.text.trim());
+    if (_controller.text.trim().isEmpty || _token == null) {
+      print(
+        '[DEBUG CHAT] Cannot send: empty=${_controller.text.trim().isEmpty}, token=${_token == null}',
+      );
+      return;
+    }
+    final message = _controller.text.trim();
+    print('[DEBUG CHAT] Sending message: $message to room: ${widget.roomId}');
+    _chat.sendMessage(widget.roomId, message, _token!);
     _controller.clear();
   }
 

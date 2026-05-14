@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/course_bloc.dart';
+import '../blocs/enrollment_bloc_provider.dart';
+import 'course_detail_screen.dart';
 
 class CourseListScreen extends StatelessWidget {
   const CourseListScreen({super.key});
@@ -30,7 +32,18 @@ class CourseListScreen extends StatelessWidget {
                         )
                       : const Icon(Icons.book),
                   onTap: () {
-                    // TODO: Navigate to course detail
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => EnrollmentBlocProvider(
+                          child: CourseDetailScreen(
+                            courseId: course.id,
+                            title: course.title,
+                            description: course.description,
+                            imageUrl: course.imageUrl,
+                          ),
+                        ),
+                      ),
+                    );
                   },
                 );
               },
@@ -42,6 +55,7 @@ class CourseListScreen extends StatelessWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'course_list_refresh_button',
         onPressed: () => context.read<CourseBloc>().add(LoadCoursesEvent()),
         child: const Icon(Icons.refresh),
       ),

@@ -30,4 +30,63 @@ class EnrollmentRemoteDataSource {
       throw ApiException('Failed to unenroll from course', response.statusCode);
     }
   }
+
+  Future<List<Map<String, dynamic>>> fetchEnrollments(String token) async {
+    final response = await http.get(
+      Uri.parse(ApiConstants.baseUrl + ApiConstants.enroll),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final enrollments = data is List ? data : (data['enrollments'] ?? []);
+      return List<Map<String, dynamic>>.from(enrollments);
+    }
+    throw ApiException('Failed to fetch enrollments', response.statusCode);
+  }
+
+  Future<Map<String, dynamic>> fetchEnrollmentDetails(
+    String enrollmentId,
+    String token,
+  ) async {
+    final response = await http.get(
+      Uri.parse(
+        ApiConstants.baseUrl + ApiConstants.enrollmentDetails(enrollmentId),
+      ),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw ApiException(
+      'Failed to fetch enrollment details',
+      response.statusCode,
+    );
+  }
+
+  Future<void> updateLessonProgress(
+    String lessonId,
+    Map<String, dynamic> progressData,
+    String token,
+  ) async {
+    final response = await http.post(
+      Uri.parse(ApiConstants.baseUrl + ApiConstants.lessonProgress(lessonId)),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(progressData),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ApiException(
+        'Failed to update lesson progress',
+        response.statusCode,
+      );
+    }
+  }
 }

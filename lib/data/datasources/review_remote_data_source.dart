@@ -6,39 +6,65 @@ import '../../core/error_handling.dart';
 class ReviewRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchReviews(String courseId) async {
     final response = await http.get(
-      Uri.parse(
-        ApiConstants.baseUrl + ApiConstants.reviews + '?courseId=$courseId',
-      ),
+      Uri.parse(ApiConstants.baseUrl + ApiConstants.courseReviews(courseId)),
       headers: {'Content-Type': 'application/json'},
     );
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return List<Map<String, dynamic>>.from(data);
+      final reviews = data is List ? data : (data['reviews'] ?? []);
+      return List<Map<String, dynamic>>.from(reviews);
     } else {
       throw ApiException('Failed to fetch reviews', response.statusCode);
     }
   }
 
-  Future<void> postReview(
+  Future<Map<String, dynamic>> postReview(
     String courseId,
     String review,
     int rating,
     String token,
   ) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.reviews),
+      Uri.parse(ApiConstants.baseUrl + ApiConstants.courseReviews(courseId)),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode({
-        'courseId': courseId,
-        'review': review,
-        'rating': rating,
-      }),
+      body: jsonEncode({'review': review, 'rating': rating}),
     );
-    if (response.statusCode != 200 && response.statusCode != 201) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
       throw ApiException('Failed to post review', response.statusCode);
+    }
+  }
+
+  Future<void> deleteReview(String reviewId, String token) async {
+    final response = await http.delete(
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.reviews}/$reviewId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw ApiException('Failed to delete review', response.statusCode);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchMyReviews(String token) async {
+    final response = await http.get(
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.reviews}/my-reviews'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return List<Map<String, dynamic>>.from(data);
+    } else {
+      throw ApiException('Failed to fetch my reviews', response.statusCode);
     }
   }
 }

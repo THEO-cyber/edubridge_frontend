@@ -16,6 +16,7 @@ class CourseBlocProvider extends StatelessWidget {
         fetchCoursesUseCase: FetchCoursesUseCase(
           CourseRepositoryImpl(CourseRemoteDataSource()),
         ),
+        courseRepository: CourseRepositoryImpl(CourseRemoteDataSource()),
       ),
       child: child,
     );
