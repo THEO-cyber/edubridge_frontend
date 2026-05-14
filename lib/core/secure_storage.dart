@@ -32,7 +32,9 @@ class SecureStorage {
   }
 
   static Future<void> deleteAllTokens() async {
+    print('[DEBUG STORAGE] Deleting all tokens...');
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'refresh_token');
+    print('[DEBUG STORAGE] All tokens deleted');
   }
 }

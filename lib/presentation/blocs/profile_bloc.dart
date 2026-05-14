@@ -17,6 +17,8 @@ class UpdateProfileEvent extends ProfileEvent {
   UpdateProfileEvent(this.data, this.token);
 }
 
+class ResetProfileEvent extends ProfileEvent {}
+
 abstract class ProfileState {}
 
 class ProfileInitial extends ProfileState {}
@@ -89,6 +91,10 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
           emit(ProfileError('Unable to update profile. Please try again.'));
         }
       }
+    });
+    on<ResetProfileEvent>((event, emit) async {
+      print('[DEBUG PROFILE BLOC] ResetProfileEvent triggered');
+      emit(ProfileInitial());
     });
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
+import '../../core/secure_storage.dart';
 
 abstract class AuthEvent {}
 
@@ -27,6 +28,8 @@ class RegisterEvent extends AuthEvent {
     this.lastName,
   );
 }
+
+class LogoutEvent extends AuthEvent {}
 
 abstract class AuthState {}
 
@@ -83,6 +86,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       } catch (e) {
         print('[AUTH_BLOC REGISTER ERROR] ${e.toString()}');
         emit(AuthFailure('Registration failed. Please try again.'));
+      }
+    });
+    on<LogoutEvent>((event, emit) async {
+      print('[DEBUG AUTH BLOC] LogoutEvent triggered');
+      try {
+        await SecureStorage.deleteAllTokens();
+        print('[DEBUG AUTH BLOC] Tokens deleted, returning to AuthInitial');
+        emit(AuthInitial());
+      } catch (e) {
+        print('[AUTH_BLOC LOGOUT ERROR] ${e.toString()}');
+        emit(AuthFailure('Logout failed'));
       }
     });
   }

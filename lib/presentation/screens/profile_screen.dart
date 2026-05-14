@@ -16,6 +16,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _token;
   bool _profileLoaded = false;
   bool _enrollmentsLoaded = false;
+  bool _tokenCheckComplete = false;
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) {
       setState(() {
         _token = token;
+        _tokenCheckComplete = true;
       });
       if (token != null && !_profileLoaded) {
         _profileLoaded = true;
@@ -38,6 +40,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (mounted) {
           context.read<ProfileBloc>().add(LoadProfileEvent(token));
         }
+      } else if (token == null) {
+        print('[DEBUG PROFILE SCREEN] No token found, user not logged in');
       }
     }
   }
@@ -53,9 +57,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       backgroundColor: Colors.grey[100],
       body: EnrollmentBlocProvider(
-        child: _token == null
-            ? const Center(child: CircularProgressIndicator())
+        child: !_tokenCheckComplete
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading...'),
+                  ],
+                ),
+              )
+            : (_token == null || _token!.isEmpty)
+            ? _buildNotLoggedIn(context, isSmall, horizontalPadding)
             : _buildProfileContent(context, isSmall, horizontalPadding),
+      ),
+    );
+  }
+
+  Widget _buildNotLoggedIn(
+    BuildContext context,
+    bool isSmall,
+    double horizontalPadding,
+  ) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 32,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.person_off,
+              size: isSmall ? 60 : 80,
+              color: Colors.blueGrey[300],
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'You are not logged in.',
+              style: TextStyle(fontSize: 18, color: Colors.black54),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pushNamed('/user-login');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Login',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -65,53 +131,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool isSmall,
     double horizontalPadding,
   ) {
-    if (_token == null || _token!.isEmpty) {
-      // Not logged in
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: 32,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.person_off,
-                size: isSmall ? 60 : 80,
-                color: Colors.blueGrey[300],
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'You are not logged in.',
-                style: TextStyle(fontSize: 18, color: Colors.black54),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pushNamed('/user-login');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
     // Logged in: show profile
     return BlocConsumer<ProfileBloc, ProfileState>(
       listener: (context, state) {
@@ -248,8 +267,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         onPressed: () async {
+                          print('[DEBUG PROFILE SCREEN] Logout button tapped');
                           await SecureStorage.deleteAllTokens();
-                          if (mounted) setState(() {});
+                          print('[DEBUG PROFILE SCREEN] Tokens deleted');
+                          // Reset profile bloc state
+                          if (mounted) {
+                            context.read<ProfileBloc>().add(
+                              ResetProfileEvent(),
+                            );
+                          }
+                          if (mounted) {
+                            setState(() {
+                              _token = null;
+                              _profileLoaded = false;
+                              _enrollmentsLoaded = false;
+                            });
+                            print(
+                              '[DEBUG PROFILE SCREEN] State reset, navigating to login',
+                            );
+                            // Navigate to login screen
+                            if (mounted) {
+                              Navigator.of(
+                                context,
+                              ).pushReplacementNamed('/user-login');
+                            }
+                          }
                         },
                       ),
                     ),
@@ -334,7 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      state.message,
+                      'Login to your account',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: isSmall ? 16 : 18,
@@ -359,7 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         child: const Text(
-                          'Login Again',
+                          'Login',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,

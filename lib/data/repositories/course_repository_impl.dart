@@ -8,31 +8,30 @@ class CourseRepositoryImpl implements CourseRepository {
 
   @override
   Future<List<CourseEntity>> fetchCourses() async {
+    print('[DEBUG COURSE REPO] Fetching courses from remote data source...');
     final data = await remoteDataSource.fetchCourses();
-    return data
-        .map(
-          (e) => CourseEntity(
-            id: e['id'] ?? '',
-            title: e['title'] ?? 'Untitled',
-            description: e['description'] ?? '',
-            instructorId: e['instructorId'] ?? '',
-            imageUrl: e['imageUrl'],
-            instructorName: e['instructorName'],
-            price: (e['price'] ?? 0).toDouble(),
-            rating: (e['rating'] ?? 0).toDouble(),
-            reviewCount: e['reviewCount'] ?? 0,
-            studentCount: e['studentCount'] ?? 0,
-            category: e['category'] ?? 'General',
-            level: e['level'] ?? 'Beginner',
-            duration: e['duration'],
-            tags: List<String>.from(e['tags'] ?? []),
-            isFree: e['price'] == null || e['price'] == 0,
-            createdAt: DateTime.parse(
-              e['createdAt'] ?? DateTime.now().toString(),
-            ),
-          ),
-        )
-        .toList();
+    print('[DEBUG COURSE REPO] Received ${data.length} raw course items');
+    return data.map((e) {
+      print('[DEBUG COURSE REPO] Mapping course: ${e['id']} - ${e['title']}');
+      return CourseEntity(
+        id: e['id'] ?? '',
+        title: e['title'] ?? 'Untitled',
+        description: e['description'] ?? '',
+        instructorId: e['instructorId'] ?? '',
+        imageUrl: e['imageUrl'],
+        instructorName: e['instructorName'],
+        price: (e['price'] ?? 0).toDouble(),
+        rating: (e['rating'] ?? 0).toDouble(),
+        reviewCount: e['reviewCount'] ?? 0,
+        studentCount: e['studentCount'] ?? 0,
+        category: e['category'] ?? 'General',
+        level: e['level'] ?? 'Beginner',
+        duration: e['duration'],
+        tags: List<String>.from(e['tags'] ?? []),
+        isFree: e['price'] == null || e['price'] == 0,
+        createdAt: DateTime.parse(e['createdAt'] ?? DateTime.now().toString()),
+      );
+    }).toList();
   }
 
   @override

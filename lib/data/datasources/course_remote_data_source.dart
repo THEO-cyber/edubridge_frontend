@@ -7,20 +7,41 @@ class CourseRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchCourses({
     Map<String, String>? filters,
   }) async {
+    print('[DEBUG COURSE FETCH] Fetching courses...');
     final uri = Uri.parse(ApiConstants.baseUrl + ApiConstants.courses).replace(
       queryParameters: filters == null || filters.isEmpty ? null : filters,
     );
-    final response = await http.get(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      // If the API returns a map with a 'courses' key, extract it; otherwise, assume it's a list
-      final coursesList = data is List ? data : (data['courses'] ?? []);
-      return List<Map<String, dynamic>>.from(coursesList);
-    } else {
-      throw ApiException('Failed to fetch courses', response.statusCode);
+    print('[DEBUG COURSE FETCH] URL: $uri');
+    try {
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+      print('[DEBUG COURSE FETCH] Response status: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print(
+          '[DEBUG COURSE FETCH] Raw response: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}',
+        );
+        // If the API returns a map with a 'courses' key, extract it; otherwise, assume it's a list
+        final coursesList = data is List
+            ? data
+            : (data['courses'] ?? data['data'] ?? []);
+        print('[DEBUG COURSE FETCH] Parsed ${coursesList.length} courses');
+        return List<Map<String, dynamic>>.from(coursesList);
+      } else if (response.statusCode == 404) {
+        print(
+          '[DEBUG COURSE FETCH] 404 - Endpoint not found, returning empty list',
+        );
+        return [];
+      } else {
+        print('[DEBUG COURSE FETCH] Failed with status ${response.statusCode}');
+        throw ApiException('Failed to fetch courses', response.statusCode);
+      }
+    } catch (e) {
+      print('[DEBUG COURSE FETCH] Exception: $e');
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error fetching courses: $e', 0);
     }
   }
 

@@ -200,10 +200,10 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
                         ),
                         TextButton(
                           onPressed: () {
-                            Navigator.pushNamed(context, '/lecturer-enroll');
+                            Navigator.pushNamed(context, '/lecturer-register');
                           },
                           child: const Text(
-                            'Enroll as Lecturer',
+                            'Create one now',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
