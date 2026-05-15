@@ -7,331 +7,375 @@ class LandingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Theme.of(context).primaryColor, Colors.blue[100]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Theme.of(context).primaryColor, Colors.blue[100]!],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Welcome to eduBridge',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome to EduBridge',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+              const SizedBox(height: 8),
+              Text(
+                'Learn anything, anytime, anywhere.',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(color: Colors.white70),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search for courses, topics, or instructors',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Learn anything, anytime, anywhere.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(color: Colors.white70),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search for courses, topics, or instructors',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
+              ),
+              // Removed Enroll as Lecturer button from here for a cleaner header
+            ],
+          ),
+        ),
+        Expanded(
+          child: Container(
+            color: Colors.white,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Text(
+                      'Popular Categories',
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
-                ),
-                // Removed Enroll as Lecturer button from here for a cleaner header
-              ],
-            ),
-          ),
-          SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Text(
-              'Popular Categories',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 120,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: const [
-                _CategoryCard(title: 'Development', icon: Icons.code),
-                _CategoryCard(title: 'Business', icon: Icons.business_center),
-                _CategoryCard(title: 'Design', icon: Icons.design_services),
-                _CategoryCard(title: 'IT & Software', icon: Icons.computer),
-                _CategoryCard(
-                  title: 'Personal Dev',
-                  icon: Icons.self_improvement,
-                ),
-                _CategoryCard(title: 'Photography', icon: Icons.camera_alt),
-              ],
-            ),
-          ),
-          const SizedBox(height: 32),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Text(
-              'Featured Courses',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const _FeaturedCoursesSection(),
-          const SizedBox(height: 32),
-          SizedBox(
-            key: _topCoursesKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Text(
-                    'Top Courses',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 120,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: const [
+                        _CategoryCard(title: 'Development', icon: Icons.code),
+                        _CategoryCard(
+                          title: 'Business',
+                          icon: Icons.business_center,
+                        ),
+                        _CategoryCard(
+                          title: 'Design',
+                          icon: Icons.design_services,
+                        ),
+                        _CategoryCard(
+                          title: 'IT & Software',
+                          icon: Icons.computer,
+                        ),
+                        _CategoryCard(
+                          title: 'Personal Dev',
+                          icon: Icons.self_improvement,
+                        ),
+                        _CategoryCard(
+                          title: 'Photography',
+                          icon: Icons.camera_alt,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const _TopCoursesSection(),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
-          // Suggestions Section (moved below Top Courses)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Row(
-              children: [
-                Icon(Icons.lightbulb, color: Colors.amber[700]),
-                const SizedBox(width: 8),
-                Text(
-                  'Quick Actions',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                  const SizedBox(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Text(
+                      'Featured Courses',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
-
-                  elevation: 2,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.of(context).pushNamed('/lecturer-login');
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.emoji_events,
-                            color: Colors.amber,
-                            size: 32,
+                  const SizedBox(height: 16),
+                  const _FeaturedCoursesSection(),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    key: _topCoursesKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                          child: Text(
+                            'Top Courses',
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  'My Certificates',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'View course completions and access earned certificates.',
-                                  style: TextStyle(fontSize: 13),
-                                ),
-                              ],
-                            ),
+                        ),
+                        const SizedBox(height: 16),
+                        const _TopCoursesSection(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // Suggestions Section (moved below Top Courses)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lightbulb, color: Colors.amber[700]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Quick Actions',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Card(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.amber[700],
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                            onPressed: () {
-                              Navigator.of(context).pushNamed('/certificates');
+                          elevation: 2,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.of(
+                                context,
+                              ).pushNamed('/lecturer-login');
                             },
-                            child: const Text('Open'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.videocam, color: Colors.red, size: 32),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'Live Sessions',
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 12,
                               ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Check upcoming sessions and join live classes from one place.',
-                                style: TextStyle(fontSize: 13),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.emoji_events,
+                                    color: Colors.amber,
+                                    size: 32,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: const [
+                                        Text(
+                                          'My Certificates',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          'View course completions and access earned certificates.',
+                                          style: TextStyle(fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.amber[700],
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      Navigator.of(
+                                        context,
+                                      ).pushNamed('/certificates');
+                                    },
+                                    child: const Text('Open'),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.arrow_forward_ios),
-                          onPressed: () {
-                            Navigator.of(context).pushNamed('/live-sessions');
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.notifications_active,
-                          color: Colors.blue,
-                          size: 32,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'Notifications',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Review reminders, updates, and recent activity in one feed.',
-                                style: TextStyle(fontSize: 13),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.arrow_forward_ios),
-                          onPressed: () {
-                            Navigator.of(context).pushNamed('/notifications');
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 2,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.of(context).pushNamed('/chat');
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.support_agent,
-                            color: Colors.green,
-                            size: 32,
+                        const SizedBox(height: 14),
+                        Card(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          const SizedBox(width: 16),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          elevation: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 12,
+                            ),
+                            child: Row(
                               children: [
-                                Text(
-                                  'Support Chat',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                const Icon(
+                                  Icons.videocam,
+                                  color: Colors.red,
+                                  size: 32,
                                 ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Open the student support room to ask questions and get help.',
-                                  style: TextStyle(fontSize: 13),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: const [
+                                      Text(
+                                        'Live Sessions',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        'Check upcoming sessions and join live classes from one place.',
+                                        style: TextStyle(fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_forward_ios),
+                                  onPressed: () {
+                                    Navigator.of(
+                                      context,
+                                    ).pushNamed('/live-sessions');
+                                  },
                                 ),
                               ],
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.arrow_forward_ios),
-                            onPressed: () {
+                        ),
+                        const SizedBox(height: 14),
+                        Card(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.notifications_active,
+                                  color: Colors.blue,
+                                  size: 32,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: const [
+                                      Text(
+                                        'Notifications',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        'Review reminders, updates, and recent activity in one feed.',
+                                        style: TextStyle(fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_forward_ios),
+                                  onPressed: () {
+                                    Navigator.of(
+                                      context,
+                                    ).pushNamed('/notifications');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Card(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 2,
+                          child: InkWell(
+                            onTap: () {
                               Navigator.of(context).pushNamed('/chat');
                             },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.support_agent,
+                                    color: Colors.green,
+                                    size: 32,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Support Chat',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          'Open the student support room to ask questions and get help.',
+                                          style: TextStyle(fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_forward_ios),
+                                    onPressed: () {
+                                      Navigator.of(context).pushNamed('/chat');
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
-    // Top Courses Section
   }
 }
 

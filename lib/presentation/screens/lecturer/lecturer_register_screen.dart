@@ -20,7 +20,7 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
   final _formKey = GlobalKey<FormState>();
 
   List<TextSpan> _buildLogoText() {
-    const letters = 'edubridge';
+    const letters = 'eduBridge';
     final colors = [
       Colors.blue,
       Colors.orange,
@@ -401,8 +401,8 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
                                         onPressed: () {},
                                         icon: Image.asset(
                                           'assets/icons/google.png',
-                                          width: 20,
-                                          height: 20,
+                                          width: 30,
+                                          height: 30,
                                         ),
                                         label: const Text(
                                           'Sign up with Google',
