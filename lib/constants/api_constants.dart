@@ -225,6 +225,16 @@ class ApiConstants {
       '$certificates/verify/$number';
   static String notificationRead(String id) => '$notifications/$id/read';
   static String deleteNotification(String id) => '$notifications/$id';
+
+  // Admin
+  static const String adminInstructors = '/admin/instructors';
+  static const String adminReviews = '/admin/reviews';
+  static String adminSuspend(String id) => '/admin/instructors/$id/suspend';
+  static String adminWarn(String id) => '/admin/instructors/$id/warn';
+  static String adminDeleteInstructor(String id) => '/admin/instructors/$id';
+
+  // Session reviews (instructor)
+  static String sessionReviews(String sessionId) => '/live-sessions/$sessionId/reviews';
 }
 
 class AppColors {

@@ -42,6 +42,8 @@ import 'presentation/screens/notes_screen.dart';
 import 'presentation/screens/two_factor_setup_screen.dart';
 import 'presentation/screens/email_preferences_screen.dart';
 import 'presentation/screens/settings_screen.dart';
+import 'presentation/screens/admin_dashboard_screen.dart';
+import 'presentation/screens/post_session_review_screen.dart';
 
 // Must be a top-level function — handles FCM messages when app is terminated
 @pragma('vm:entry-point')
@@ -139,6 +141,20 @@ class EduBridgeApp extends StatelessWidget {
         '/email-preferences': (context) => const EmailPreferencesScreen(),
         '/my-notes': (context) => const NotesScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/admin-dashboard': (context) => const AdminDashboardScreen(),
+      },
+      onGenerateRoute: (settings) {
+        // Handle /courses/:id/review — post-session review prompt from notification tap
+        final reviewMatch =
+            RegExp(r'^/courses/([^/]+)/review$').firstMatch(settings.name ?? '');
+        if (reviewMatch != null) {
+          final courseId = reviewMatch.group(1)!;
+          return MaterialPageRoute(
+            builder: (_) => PostSessionReviewScreen(courseId: courseId),
+            settings: settings,
+          );
+        }
+        return null;
       },
     );
   }

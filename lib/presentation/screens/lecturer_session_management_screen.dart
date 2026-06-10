@@ -6,6 +6,7 @@ import '../../core/secure_storage.dart';
 import '../../data/datasources/live_session_remote_data_source.dart';
 import '../../data/datasources/course_remote_data_source.dart';
 import 'live_classroom_screen.dart';
+import 'session_reviews_screen.dart';
 
 const _kNavy = Color(0xFF1A237E);
 const _kBlue = Color(0xFF1976D2);
@@ -474,6 +475,15 @@ class _LecturerSessionManagementScreenState
                     _loadAll();
                   }
                 },
+                onReviewsTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SessionReviewsScreen(
+                      sessionId: session.id,
+                      sessionTitle: session.title,
+                    ),
+                  ),
+                ),
               );
             }),
           ],
@@ -544,6 +554,7 @@ class _SessionCard extends StatelessWidget {
   final VoidCallback onDeleteTap;
   final VoidCallback onRescheduleTap;
   final VoidCallback onJoinTap;
+  final VoidCallback onReviewsTap;
 
   const _SessionCard({
     required this.session,
@@ -554,6 +565,7 @@ class _SessionCard extends StatelessWidget {
     required this.onDeleteTap,
     required this.onRescheduleTap,
     required this.onJoinTap,
+    required this.onReviewsTap,
   });
 
   Color get _statusColor {
@@ -667,6 +679,7 @@ class _SessionCard extends StatelessWidget {
                   if (val == 'applications') onApplicationsTap();
                   if (val == 'requests') onRequestsTap();
                   if (val == 'analytics') onAnalyticsTap();
+                  if (val == 'reviews') onReviewsTap();
                   if (val == 'end') onEndTap();
                   if (val == 'reschedule') onRescheduleTap();
                   if (val == 'delete') onDeleteTap();
@@ -702,6 +715,16 @@ class _SessionCard extends StatelessWidget {
                       Text('View Analytics'),
                     ]),
                   ),
+                  if ((session.status ?? '').toString().toLowerCase() == 'completed')
+                    const PopupMenuItem(
+                      value: 'reviews',
+                      child: Row(children: [
+                        Icon(Icons.rate_review_rounded, size: 18, color: Color(0xFF1A237E)),
+                        SizedBox(width: 8),
+                        Text('View Session Reviews',
+                            style: TextStyle(color: Color(0xFF1A237E), fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
                   if ((session.status ?? '').toString().toLowerCase() !=
                       'completed')
                     const PopupMenuItem(
