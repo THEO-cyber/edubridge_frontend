@@ -52,6 +52,7 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
   bool _screenSharing = false;
   bool _boardOpen = false;
   bool _handRaised = false;
+  bool _navigatedAway = false;
 
   // ── Interactive state ──
   bool _showApplause = false;
@@ -86,7 +87,7 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
 
     listener
       ..on<RoomConnectedEvent>(rebuild)
-      ..on<RoomDisconnectedEvent>((_) { if (mounted) Navigator.of(context).pop(); })
+      ..on<RoomDisconnectedEvent>((_) => _navigateBack())
       ..on<ParticipantConnectedEvent>(rebuild)
       ..on<ParticipantDisconnectedEvent>((e) {
         if (mounted) setState(() {
@@ -267,9 +268,15 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
     _send({'type': _kSpotlight, 'id': next});
   }
 
+  void _navigateBack() {
+    if (_navigatedAway || !mounted) return;
+    _navigatedAway = true;
+    Navigator.of(context).pop();
+  }
+
   Future<void> _leave() async {
     await _room?.disconnect();
-    if (mounted) Navigator.of(context).pop();
+    _navigateBack();
   }
 
   @override
