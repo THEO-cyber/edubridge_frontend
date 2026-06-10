@@ -74,7 +74,7 @@ class ProgressRemoteDataSource {
     );
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      final coursesList = data is List ? data : (data['courses'] ?? []);
+      final coursesList = data is List ? data : (data['courses'] ?? data['enrollments'] ?? data['data'] ?? []);
       return List<Map<String, dynamic>>.from(coursesList);
     } else {
       throw ApiException(

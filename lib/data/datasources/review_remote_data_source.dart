@@ -11,7 +11,7 @@ class ReviewRemoteDataSource {
     );
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      final reviews = data is List ? data : (data['reviews'] ?? []);
+      final reviews = data is List ? data : (data['reviews'] ?? data['data'] ?? []);
       return List<Map<String, dynamic>>.from(reviews);
     } else {
       throw ApiException('Failed to fetch reviews', response.statusCode);
@@ -25,7 +25,6 @@ class ReviewRemoteDataSource {
     String token,
   ) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.reviews}';
-    print('---------- [Review] POST $url courseId=$courseId');
     final response = await http.post(
       Uri.parse(url),
       headers: {
@@ -40,8 +39,6 @@ class ReviewRemoteDataSource {
         'rating': rating,
       }),
     );
-    print('---------- [Review] Status: ${response.statusCode}');
-    print('---------- [Review] Response: ${response.body}');
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     } else {

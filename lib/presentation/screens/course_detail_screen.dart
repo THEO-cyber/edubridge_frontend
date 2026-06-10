@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'package:edubridge/presentation/screens/auth_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:http/http.dart' as http;
+import '../../constants/api_constants.dart';
 import '../../core/error_handling.dart';
 import '../../core/secure_storage.dart';
-import '../../data/datasources/progress_remote_data_source.dart';
 import '../../data/datasources/wishlist_remote_data_source.dart';
 import '../../data/datasources/review_remote_data_source.dart';
 import '../blocs/enrollment_bloc.dart';
@@ -82,12 +84,18 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
     try {
       final token = await SecureStorage.getToken();
       if (token == null || token.isEmpty) return;
-      final courses = await ProgressRemoteDataSource().fetchEnrolledCourses(token);
-      final enrolled = courses.any((c) {
-        final id = (c['courseId'] ?? c['course']?['id'] ?? c['id'] ?? '').toString();
-        return id == widget.courseId;
-      });
-      if (mounted) setState(() => _isEnrolled = enrolled);
+      final res = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.courseDetails(widget.courseId)}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final enrolled = data['isEnrolled'] == true;
+        if (mounted) setState(() => _isEnrolled = enrolled);
+      }
     } catch (_) {}
   }
 
