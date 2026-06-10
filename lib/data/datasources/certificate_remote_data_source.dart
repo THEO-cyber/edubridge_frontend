@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:edubridge/constants/api_constants.dart';
 import 'package:http/http.dart' as http;
 import '../../core/error_handling.dart';
@@ -63,7 +64,7 @@ class CertificateRemoteDataSource {
     );
   }
 
-  Future<String> downloadCertificate(String certificateId, String token) async {
+  Future<Uint8List> downloadCertificate(String certificateId, String token) async {
     final response = await http.get(
       Uri.parse(
         '${ApiConstants.baseUrl}${ApiConstants.certificates}/$certificateId/download',
@@ -71,7 +72,7 @@ class CertificateRemoteDataSource {
       headers: {'Authorization': 'Bearer $token'},
     );
     if (response.statusCode == 200) {
-      return response.bodyBytes.toString();
+      return response.bodyBytes;
     } else {
       throw ApiException('Failed to download certificate', response.statusCode);
     }

@@ -8,20 +8,15 @@ class ChatRemoteDataSource {
 
   void connect(String token) {
     final wsUrl = ApiConstants.baseUrl.replaceFirst('/api/v1', '');
-    print('[DEBUG CHAT SOCKET] Connecting to: $wsUrl');
     _socket = io.io(wsUrl, <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': false,
       'extraHeaders': {'Authorization': 'Bearer $token'},
     });
-    _socket?.on('connect', (_) => print('[DEBUG CHAT SOCKET] Connected'));
-    _socket?.on('disconnect', (_) => print('[DEBUG CHAT SOCKET] Disconnected'));
-    _socket?.on('error', (data) => print('[DEBUG CHAT SOCKET] Error: $data'));
     _socket?.connect();
   }
 
   void joinRoom(String roomId) {
-    print('[DEBUG CHAT SOCKET] Emitting join_chat_room: $roomId');
     _socket?.emit('join_chat_room', {'roomId': roomId});
   }
 
@@ -31,7 +26,6 @@ class ChatRemoteDataSource {
 
   Future<void> sendMessage(String roomId, String message, String token) async {
     final url = ApiConstants.baseUrl + ApiConstants.chatMessages(roomId);
-    print('[DEBUG CHAT HTTP] Sending to: $url, message: $message');
     final response = await http.post(
       Uri.parse(url),
       headers: {
@@ -40,14 +34,7 @@ class ChatRemoteDataSource {
       },
       body: jsonEncode({'message': message}),
     );
-    print(
-      '[DEBUG CHAT HTTP] Response: ${response.statusCode} - ${response.body}',
-    );
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      print('[DEBUG CHAT HTTP] Message sent successfully');
-      return;
-    }
-    print('[DEBUG CHAT HTTP] ERROR sending message: ${response.statusCode}');
+    if (response.statusCode == 200 || response.statusCode == 201) return;
     throw Exception('Failed to send chat message');
   }
 

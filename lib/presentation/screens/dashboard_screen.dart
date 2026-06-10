@@ -1,7 +1,9 @@
+import 'package:edubridge/core/secure_storage.dart';
 import 'package:edubridge/presentation/blocs/course_bloc_provider.dart';
 import 'package:edubridge/presentation/blocs/profile_bloc_provider.dart';
-import 'package:edubridge/presentation/blocs/wishlist_bloc_provider.dart';
+import 'package:edubridge/presentation/blocs/wishlist_bloc.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'course_list_screen.dart';
 import '../widgets/main_nav_bar.dart';
 import 'wishlist_screen.dart';
@@ -17,6 +19,16 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
+
+  Future<void> _onTabTap(int i) async {
+    setState(() => _currentIndex = i);
+    if (i == 2) {
+      final token = await SecureStorage.getToken();
+      if (mounted && token != null && token.isNotEmpty) {
+        context.read<WishlistBloc>().add(LoadWishlistEvent(token));
+      }
+    }
+  }
 
   void _openStudentShortcuts() {
     showModalBottomSheet<void>(
@@ -44,11 +56,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.notifications_outlined),
-                title: const Text('Notifications'),
+                leading: const Icon(Icons.school_outlined,
+                    color: Color(0xFF1976D2)),
+                title: const Text('Instructor Login'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.of(this.context).pushNamed('/notifications');
+                  Navigator.of(this.context).pushNamed('/lecturer-login');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('Settings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(this.context).pushNamed('/settings');
                 },
               ),
               ListTile(
@@ -70,11 +91,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final screens = [
       LandingPage(),
-      // Wrap CourseListScreen with CourseBlocProvider
       CourseBlocProvider(child: const CourseListScreen()),
-      // Wrap WishlistScreen with WishlistBlocProvider
-      WishlistBlocProvider(child: const WishlistScreen()),
-      // Wrap ProfileScreen with ProfileBlocProvider
+      const WishlistScreen(),
       ProfileBlocProvider(child: const ProfileScreen()),
     ];
     return Scaffold(
@@ -86,7 +104,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       bottomNavigationBar: MainNavBar(
         currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
+        onTap: _onTabTap,
       ),
     );
   }

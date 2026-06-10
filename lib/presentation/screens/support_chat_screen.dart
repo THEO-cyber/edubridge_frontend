@@ -144,7 +144,6 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isSmall = MediaQuery.of(context).size.width < 400;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Support Chat'),

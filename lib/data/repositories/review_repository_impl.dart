@@ -15,7 +15,7 @@ class ReviewRepositoryImpl implements ReviewRepository {
             id: e['id'] ?? '',
             courseId: e['courseId'] ?? '',
             studentId: e['studentId'] ?? '',
-            rating: (e['rating'] ?? 0).toDouble(),
+            rating: double.tryParse((e['rating'] ?? '0').toString()) ?? 0.0,
             comment: e['comment'] ?? e['review'] ?? '',
             createdAt: DateTime.parse(
               e['createdAt'] ?? DateTime.now().toString(),
@@ -44,7 +44,7 @@ class ReviewRepositoryImpl implements ReviewRepository {
       id: data['id'] ?? '',
       courseId: data['courseId'] ?? courseId,
       studentId: data['studentId'] ?? '',
-      rating: (data['rating'] ?? rating).toDouble(),
+      rating: double.tryParse((data['rating'] ?? rating).toString()) ?? rating.toDouble(),
       comment: data['comment'] ?? data['review'] ?? review,
       createdAt: DateTime.parse(data['createdAt'] ?? DateTime.now().toString()),
       studentName: data['studentName'],
@@ -64,7 +64,7 @@ class ReviewRepositoryImpl implements ReviewRepository {
             id: e['id'] ?? '',
             courseId: e['courseId'] ?? '',
             studentId: e['studentId'] ?? '',
-            rating: (e['rating'] ?? 0).toDouble(),
+            rating: double.tryParse((e['rating'] ?? '0').toString()) ?? 0.0,
             comment: e['comment'] ?? e['review'] ?? '',
             createdAt: DateTime.parse(
               e['createdAt'] ?? DateTime.now().toString(),

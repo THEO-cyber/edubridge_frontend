@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/secure_storage.dart';
-import '../blocs/enrollment_bloc.dart';
+import 'course_announcements_screen.dart';
+import 'course_discussions_screen.dart';
 
 class EnhancedCourseDetailScreen extends StatefulWidget {
   final String courseId;
   final Map<String, dynamic>? courseData;
+  final bool isInstructor;
 
   const EnhancedCourseDetailScreen({
     super.key,
     required this.courseId,
     this.courseData,
+    this.isInstructor = false,
   });
 
   @override
@@ -19,237 +21,242 @@ class EnhancedCourseDetailScreen extends StatefulWidget {
 }
 
 class _EnhancedCourseDetailScreenState
-    extends State<EnhancedCourseDetailScreen> {
+    extends State<EnhancedCourseDetailScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   bool _isExpanded = false;
 
   @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isSmall = MediaQuery.of(context).size.width < 400;
+    final course = widget.courseData ?? {};
+    final title = course['title'] ?? course['courseTitle'] ?? 'Course';
+    final instructor =
+        course['instructorName'] ?? 'Unknown Instructor';
+    final description = course['description'] ?? '';
+    final image = course['image'] ?? course['courseImage'];
+    final rating = (course['rating'] ?? 0.0).toDouble();
+    final lessonsCount = course['lessonsCount'] ?? 0;
+    final studentsCount = course['studentsCount'] ?? 0;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Course Details'),
-        backgroundColor: Colors.blueGrey[800],
+        title: Text(title, overflow: TextOverflow.ellipsis),
+        backgroundColor: const Color(0xFF1A237E),
+        foregroundColor: Colors.white,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: const [
+            Tab(text: 'Overview'),
+            Tab(text: 'Announcements'),
+            Tab(text: 'Q&A'),
+          ],
+        ),
       ),
-      backgroundColor: Colors.grey[100],
-      body: FutureBuilder<String?>(
-        future: SecureStorage.getToken(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final token = snapshot.data;
-          final course = widget.courseData ?? {};
-          final title =
-              course['title'] ?? course['courseTitle'] ?? 'Unknown Course';
-          final instructor = course['instructorName'] ?? 'Unknown Instructor';
-          final description =
-              course['description'] ?? 'No description available';
-          final image = course['image'] ?? course['courseImage'];
-          final rating = (course['rating'] ?? 0.0).toDouble();
-          final price = course['price'] ?? 0;
-          final lessonsCount = course['lessonsCount'] ?? 0;
-          final studentsCount = course['studentsCount'] ?? 0;
-
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (image != null)
-                  Image.network(
-                    image,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 200,
-                        color: Colors.blueGrey[200],
-                        child: Icon(
-                          Icons.school,
-                          size: 80,
-                          color: Colors.blueGrey[400],
-                        ),
-                      );
-                    },
-                  ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: isSmall ? 20 : 24,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'by $instructor',
-                        style: TextStyle(
-                          color: Colors.blueGrey[600],
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Row(
-                            children: List.generate(5, (i) {
-                              return Icon(
-                                i < rating.toInt()
-                                    ? Icons.star
-                                    : Icons.star_border,
-                                color: Colors.amber,
-                                size: 16,
-                              );
-                            }),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '$rating / 5.0',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          const SizedBox(width: 16),
-                          if (studentsCount > 0)
-                            Text(
-                              '$studentsCount students',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blueGrey[600],
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blueGrey[50],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            Column(
-                              children: [
-                                Icon(
-                                  Icons.video_library,
-                                  color: Colors.blueGrey[700],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '$lessonsCount lessons',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                            Column(
-                              children: [
-                                Icon(Icons.timer, color: Colors.blueGrey[700]),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Self-paced',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                            Column(
-                              children: [
-                                Icon(
-                                  Icons.assignment,
-                                  color: Colors.blueGrey[700],
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Certificate',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'About This Course',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: isSmall ? 14 : 16,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: () => setState(() => _isExpanded = !_isExpanded),
-                        child: Text(
-                          description,
-                          maxLines: _isExpanded ? null : 3,
-                          overflow: _isExpanded
-                              ? TextOverflow.visible
-                              : TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.blueGrey[700],
-                            fontSize: 14,
-                            height: 1.5,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Course Includes',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: isSmall ? 14 : 16,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ...[
-                        'Video lessons',
-                        'Downloadable resources',
-                        'Q&A support',
-                        'Certificate of completion',
-                      ].map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle,
-                                color: Colors.green[600],
-                                size: 18,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(item),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      if (token != null && token.isNotEmpty)
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('Continue Learning'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue[600],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            onPressed: () {
-                              // Navigate to course content
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildOverview(
+              title, instructor, description, image, rating,
+              lessonsCount, studentsCount),
+          FutureBuilder<String?>(
+            future: SecureStorage.getToken(),
+            builder: (ctx, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.data == null) {
+                return const Center(child: Text('Sign in to view announcements'));
+              }
+              return CourseAnnouncementsScreen(
+                courseId: widget.courseId,
+                isInstructor: widget.isInstructor,
+              );
+            },
+          ),
+          FutureBuilder<String?>(
+            future: SecureStorage.getToken(),
+            builder: (ctx, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.data == null) {
+                return const Center(child: Text('Sign in to view discussions'));
+              }
+              return CourseDiscussionsScreen(courseId: widget.courseId);
+            },
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildOverview(
+    String title,
+    String instructor,
+    String description,
+    dynamic image,
+    double rating,
+    int lessonsCount,
+    int studentsCount,
+  ) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (image != null)
+            Image.network(
+              image,
+              height: 200,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                height: 200,
+                color: Colors.blueGrey.shade100,
+                child: Icon(Icons.school,
+                    size: 80, color: Colors.blueGrey.shade400),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 22)),
+                const SizedBox(height: 6),
+                Text('by $instructor',
+                    style: TextStyle(
+                        color: Colors.blueGrey.shade600, fontSize: 14)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    ...List.generate(
+                      5,
+                      (i) => Icon(
+                        i < rating.toInt()
+                            ? Icons.star
+                            : Icons.star_border,
+                        color: Colors.amber,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text('$rating / 5.0',
+                        style: const TextStyle(fontSize: 12)),
+                    if (studentsCount > 0) ...[
+                      const SizedBox(width: 12),
+                      Text('$studentsCount students',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blueGrey.shade600)),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _statItem(
+                          Icons.video_library, '$lessonsCount lessons'),
+                      _statItem(Icons.timer, 'Self-paced'),
+                      _statItem(Icons.workspace_premium, 'Certificate'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text('About This Course',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () =>
+                      setState(() => _isExpanded = !_isExpanded),
+                  child: Text(
+                    description,
+                    maxLines: _isExpanded ? null : 3,
+                    overflow: _isExpanded
+                        ? TextOverflow.visible
+                        : TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.blueGrey.shade700,
+                        fontSize: 14,
+                        height: 1.5),
+                  ),
+                ),
+                if (description.length > 120)
+                  GestureDetector(
+                    onTap: () =>
+                        setState(() => _isExpanded = !_isExpanded),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        _isExpanded ? 'Show less' : 'Show more',
+                        style: const TextStyle(
+                            color: Color(0xFF1A237E),
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                const Text('Course Includes',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 10),
+                ...[
+                  'Video lessons',
+                  'Quizzes & assessments',
+                  'Downloadable resources',
+                  'Q&A with instructor',
+                  'Certificate of completion',
+                ].map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle,
+                            color: Colors.green.shade600, size: 18),
+                        const SizedBox(width: 10),
+                        Text(item),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statItem(IconData icon, String label) => Column(
+        children: [
+          Icon(icon, color: Colors.blueGrey.shade700),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      );
 }

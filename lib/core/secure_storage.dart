@@ -4,15 +4,11 @@ class SecureStorage {
   static const _storage = FlutterSecureStorage();
 
   static Future<void> saveToken(String token) async {
-    print('[DEBUG STORAGE] Saving token: ${token.substring(0, 20)}...');
     await _storage.write(key: 'jwt_token', value: token);
-    print('[DEBUG STORAGE] Token saved');
   }
 
   static Future<String?> getToken() async {
-    final token = await _storage.read(key: 'jwt_token');
-    print('[DEBUG STORAGE] Retrieved token: ${token != null ? 'YES' : 'NO'}');
-    return token;
+    return await _storage.read(key: 'jwt_token');
   }
 
   static Future<void> saveRefreshToken(String refreshToken) async {
@@ -32,9 +28,19 @@ class SecureStorage {
   }
 
   static Future<void> deleteAllTokens() async {
-    print('[DEBUG STORAGE] Deleting all tokens...');
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'refresh_token');
-    print('[DEBUG STORAGE] All tokens deleted');
+  }
+
+  static Future<void> saveRole(String role) async {
+    await _storage.write(key: 'user_role', value: role);
+  }
+
+  static Future<String?> getRole() async {
+    return await _storage.read(key: 'user_role');
+  }
+
+  static Future<void> clearRole() async {
+    await _storage.delete(key: 'user_role');
   }
 }

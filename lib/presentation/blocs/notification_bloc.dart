@@ -1,4 +1,8 @@
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:http/http.dart' as http;
+import '../../constants/api_constants.dart';
+import '../../core/secure_storage.dart';
 
 abstract class NotificationEvent {}
 
@@ -50,107 +54,124 @@ class NotificationError extends NotificationState {
 
 class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
   List<Map<String, dynamic>> _notifications = [];
+  String? _cachedToken;
 
   NotificationBloc() : super(NotificationInitial()) {
     on<LoadNotificationsEvent>((event, emit) async {
       emit(NotificationLoading());
       try {
-        _notifications = _seedNotifications();
-        emit(
-          NotificationLoaded(List.unmodifiable(_notifications), _unreadCount),
+        final token = event.token ?? await SecureStorage.getToken();
+        if (token == null || token.isEmpty) {
+          _notifications = [];
+          emit(NotificationLoaded(const [], 0));
+          return;
+        }
+        _cachedToken = token;
+
+        final response = await http.get(
+          Uri.parse(ApiConstants.baseUrl + ApiConstants.notifications),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
         );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final list = data is List
+              ? data
+              : (data['notifications'] ?? data['data'] ?? []);
+          _notifications = List<Map<String, dynamic>>.from(
+            (list as List).map(_normalize),
+          );
+        } else {
+          _notifications = [];
+        }
+        emit(NotificationLoaded(
+            List.unmodifiable(_notifications), _unreadCount));
       } catch (e) {
-        emit(NotificationError(e.toString()));
+        _notifications = [];
+        emit(NotificationError(e.toString().replaceFirst('Exception: ', '')));
       }
     });
 
     on<MarkAsReadEvent>((event, emit) async {
+      _notifications = _notifications.map((n) {
+        if (n['id'] == event.notificationId) return {...n, 'read': true};
+        return n;
+      }).toList();
+      emit(NotificationLoaded(
+          List.unmodifiable(_notifications), _unreadCount));
       try {
-        _notifications = _notifications.map((notification) {
-          if (notification['id'] == event.notificationId) {
-            return {...notification, 'read': true};
-          }
-          return notification;
-        }).toList();
-        emit(
-          NotificationLoaded(List.unmodifiable(_notifications), _unreadCount),
+        await http.patch(
+          Uri.parse(ApiConstants.baseUrl +
+              ApiConstants.notificationRead(event.notificationId)),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${event.token}',
+          },
         );
-      } catch (e) {
-        emit(NotificationError(e.toString()));
-      }
+      } catch (_) {}
     });
 
     on<MarkAllNotificationsReadEvent>((event, emit) async {
+      _notifications =
+          _notifications.map((n) => {...n, 'read': true}).toList();
+      emit(NotificationLoaded(List.unmodifiable(_notifications), 0));
       try {
-        _notifications = _notifications
-            .map((notification) => {...notification, 'read': true})
-            .toList();
-        emit(
-          NotificationLoaded(List.unmodifiable(_notifications), _unreadCount),
-        );
-      } catch (e) {
-        emit(NotificationError(e.toString()));
-      }
+        final token = _cachedToken ?? await SecureStorage.getToken();
+        if (token != null) {
+          await http.patch(
+            Uri.parse(
+                ApiConstants.baseUrl + ApiConstants.markAllNotificationsRead),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          );
+        }
+      } catch (_) {}
     });
 
     on<DeleteNotificationEvent>((event, emit) async {
+      _notifications = _notifications
+          .where((n) => n['id'] != event.notificationId)
+          .toList();
+      emit(NotificationLoaded(
+          List.unmodifiable(_notifications), _unreadCount));
       try {
-        _notifications = _notifications
-            .where((notification) => notification['id'] != event.notificationId)
-            .toList();
-        emit(
-          NotificationLoaded(List.unmodifiable(_notifications), _unreadCount),
+        await http.delete(
+          Uri.parse(ApiConstants.baseUrl +
+              ApiConstants.deleteNotification(event.notificationId)),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${event.token}',
+          },
         );
-      } catch (e) {
-        emit(NotificationError(e.toString()));
-      }
+      } catch (_) {}
     });
 
     on<ReceiveNotificationEvent>((event, emit) async {
-      _notifications = [event.notification, ..._notifications];
+      _notifications = [_normalize(event.notification), ..._notifications];
       emit(NotificationReceived(event.notification));
-      emit(NotificationLoaded(List.unmodifiable(_notifications), _unreadCount));
+      emit(NotificationLoaded(
+          List.unmodifiable(_notifications), _unreadCount));
     });
   }
 
-  int get _unreadCount => _notifications
-      .where((notification) => notification['read'] == false)
-      .length;
+  int get _unreadCount =>
+      _notifications.where((n) => n['read'] == false).length;
 
-  List<Map<String, dynamic>> _seedNotifications() {
-    return const [
-      {
-        'id': '1',
-        'title': 'Course Started',
-        'message': 'Your course "Flutter Masterclass" has started',
-        'type': 'course',
-        'read': false,
-        'time': '2 hours ago',
-      },
-      {
-        'id': '2',
-        'title': 'New Assignment',
-        'message': 'New assignment in "Advanced Dart"',
-        'type': 'assignment',
-        'read': false,
-        'time': '4 hours ago',
-      },
-      {
-        'id': '3',
-        'title': 'Live Session Reminder',
-        'message': 'Your live session starts in 1 hour',
-        'type': 'live_session',
-        'read': true,
-        'time': '1 day ago',
-      },
-      {
-        'id': '4',
-        'title': 'Certificate Ready',
-        'message': 'Your certificate for "Web Development" is ready',
-        'type': 'certificate',
-        'read': true,
-        'time': '2 days ago',
-      },
-    ];
+  static Map<String, dynamic> _normalize(dynamic raw) {
+    final n = raw is Map ? raw : <String, dynamic>{};
+    return {
+      'id': (n['id'] ?? n['_id'] ?? '').toString(),
+      'title': (n['title'] ?? n['subject'] ?? 'Notification').toString(),
+      'message':
+          (n['message'] ?? n['body'] ?? n['content'] ?? '').toString(),
+      'type': (n['type'] ?? 'general').toString(),
+      'read': n['read'] ?? n['isRead'] ?? false,
+      'time': (n['createdAt'] ?? n['time'] ?? '').toString(),
+    };
   }
 }

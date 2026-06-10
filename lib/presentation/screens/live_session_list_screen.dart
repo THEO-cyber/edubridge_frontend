@@ -21,7 +21,7 @@ class LiveSessionListScreen extends StatelessWidget {
             builder: (context, state) {
               if (state is LiveSessionInitial) {
                 context.read<LiveSessionBloc>().add(
-                  LoadLiveSessionsEvent(token),
+                  FetchAvailableLiveSessionsEvent(token),
                 );
                 return const Center(child: CircularProgressIndicator());
               } else if (state is LiveSessionLoading) {

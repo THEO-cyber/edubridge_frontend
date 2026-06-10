@@ -29,6 +29,9 @@ class WishlistRemoteDataSource {
         'Authorization': 'Bearer $token',
       },
     );
+    if (response.statusCode == 409) {
+      throw ApiException('Course is already in your wishlist', 409);
+    }
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw ApiException('Failed to add to wishlist', response.statusCode);
     }

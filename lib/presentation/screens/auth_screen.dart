@@ -30,10 +30,10 @@ class _AuthScreenState extends State<AuthScreen> {
         RegisterEvent(
           email,
           password,
+          role ?? 'STUDENT',
           username,
           firstname,
           lastname,
-          role ?? 'STUDENT',
         ),
       );
     }

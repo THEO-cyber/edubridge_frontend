@@ -38,14 +38,35 @@ class _ReviewScreenEnhancedState extends State<ReviewScreenEnhanced> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Course Reviews')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _buildPostReviewSection(),
-            const SizedBox(height: 24),
-            _buildReviewsList(),
-          ],
+      body: BlocListener<ReviewBloc, ReviewState>(
+        listener: (context, state) {
+          if (state is ReviewPostSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Review submitted successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Reload reviews after posting
+            context.read<ReviewBloc>().add(LoadReviewsEvent(widget.courseId));
+          } else if (state is ReviewError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _buildPostReviewSection(),
+              const SizedBox(height: 24),
+              _buildReviewsList(),
+            ],
+          ),
         ),
       ),
     );
@@ -222,26 +243,21 @@ class _ReviewScreenEnhancedState extends State<ReviewScreenEnhanced> {
 
   void _submitReview() {
     if (reviewController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please enter a review')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a review')),
+      );
       return;
     }
-
     context.read<ReviewBloc>().add(
-      PostReviewEvent(
-        widget.courseId,
-        reviewController.text,
-        rating.toInt(),
-        widget.token,
-      ),
-    );
-
+          PostReviewEvent(
+            widget.courseId,
+            reviewController.text,
+            rating.toInt(),
+            widget.token,
+          ),
+        );
     reviewController.clear();
     setState(() => rating = 5.0);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Review submitted successfully')),
-    );
+    // Success/error notification handled by BlocListener above
   }
 }

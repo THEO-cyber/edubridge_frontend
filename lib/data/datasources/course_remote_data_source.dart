@@ -1,64 +1,89 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
 import '../../core/error_handling.dart';
 
 class CourseRemoteDataSource {
+  static String _errorMessage(String body, String fallback) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        // This backend puts detailed errors in 'errors' array
+        final errors = decoded['errors'];
+        if (errors is List && errors.isNotEmpty) return errors.join('\n');
+        final msg = decoded['message'];
+        if (msg is List && msg.isNotEmpty) return msg.join('\n');
+        if (msg is String && msg.isNotEmpty) return msg;
+        final err = decoded['error'];
+        if (err is String && err.isNotEmpty) return err;
+        return fallback;
+      }
+    } catch (_) {}
+    return body.isNotEmpty ? body : fallback;
+  }
+
   Future<List<Map<String, dynamic>>> fetchCourses({
     Map<String, String>? filters,
   }) async {
-    print('[DEBUG COURSE FETCH] Fetching courses...');
     final uri = Uri.parse(ApiConstants.baseUrl + ApiConstants.courses).replace(
       queryParameters: filters == null || filters.isEmpty ? null : filters,
     );
-    print('[DEBUG COURSE FETCH] URL: $uri');
     try {
       final response = await http.get(
         uri,
         headers: {'Content-Type': 'application/json'},
       );
-      print('[DEBUG COURSE FETCH] Response status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print(
-          '[DEBUG COURSE FETCH] Raw response: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}',
-        );
-        // If the API returns a map with a 'courses' key, extract it; otherwise, assume it's a list
         final coursesList = data is List
             ? data
             : (data['courses'] ?? data['data'] ?? []);
-        print('[DEBUG COURSE FETCH] Parsed ${coursesList.length} courses');
         return List<Map<String, dynamic>>.from(coursesList);
       } else if (response.statusCode == 404) {
-        print(
-          '[DEBUG COURSE FETCH] 404 - Endpoint not found, returning empty list',
-        );
         return [];
       } else {
-        print('[DEBUG COURSE FETCH] Failed with status ${response.statusCode}');
         throw ApiException('Failed to fetch courses', response.statusCode);
       }
     } catch (e) {
-      print('[DEBUG COURSE FETCH] Exception: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Network error fetching courses: $e', 0);
     }
   }
 
   Future<List<Map<String, dynamic>>> searchCourses(String query) async {
-    final response = await http.get(
-      Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.search}?q=$query&type=course',
-      ),
+    final encoded = Uri.encodeQueryComponent(query);
+
+    // Try dedicated search endpoint first
+    try {
+      final r1 = await http.get(
+        Uri.parse(
+            '${ApiConstants.baseUrl}${ApiConstants.search}?q=$encoded&type=course'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (r1.statusCode == 200) {
+        final data = jsonDecode(r1.body);
+        final list = data is List
+            ? data
+            : (data['courses'] ?? data['results'] ?? data['data'] ?? []);
+        return List<Map<String, dynamic>>.from(list);
+      }
+    } catch (_) {}
+
+    // Fallback: filter via /courses?search= or ?title=
+    final uri = Uri.parse(ApiConstants.baseUrl + ApiConstants.courses)
+        .replace(queryParameters: {'search': query, 'title': query});
+    final r2 = await http.get(
+      uri,
       headers: {'Content-Type': 'application/json'},
     );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final coursesList = data is List ? data : (data['courses'] ?? []);
-      return List<Map<String, dynamic>>.from(coursesList);
-    } else {
-      throw ApiException('Failed to search courses', response.statusCode);
+    if (r2.statusCode == 200) {
+      final data = jsonDecode(r2.body);
+      final list = data is List ? data : (data['courses'] ?? data['data'] ?? []);
+      return List<Map<String, dynamic>>.from(list);
     }
+    throw ApiException(
+        _errorMessage(r2.body, 'Failed to search courses'), r2.statusCode);
   }
 
   Future<List<Map<String, dynamic>>> fetchCoursesByCategory(
@@ -132,18 +157,30 @@ class CourseRemoteDataSource {
     Map<String, dynamic> courseData,
     String token,
   ) async {
+    final url = ApiConstants.baseUrl + ApiConstants.courses;
+    final requestBody = jsonEncode(courseData);
+    debugPrint('------------ CREATE COURSE REQUEST ------------');
+    debugPrint('------------ URL: $url');
+    debugPrint('------------ BODY: $requestBody');
+
     final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.courses),
+      Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode(courseData),
+      body: requestBody,
     );
+
+    debugPrint('------------ CREATE COURSE RESPONSE ------------');
+    debugPrint('------------ STATUS: ${response.statusCode}');
+    debugPrint('------------ RESPONSE BODY: ${response.body}');
+
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
-    throw ApiException('Failed to create course', response.statusCode);
+    final body = _errorMessage(response.body, 'Failed to create course');
+    throw ApiException(body, response.statusCode);
   }
 
   Future<Map<String, dynamic>> updateCourse(
@@ -162,7 +199,8 @@ class CourseRemoteDataSource {
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
-    throw ApiException('Failed to update course', response.statusCode);
+    final body = _errorMessage(response.body, 'Failed to update course');
+    throw ApiException(body, response.statusCode);
   }
 
   Future<void> deleteCourse(String courseId, String token) async {
@@ -174,7 +212,8 @@ class CourseRemoteDataSource {
       },
     );
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw ApiException('Failed to delete course', response.statusCode);
+      final body = _errorMessage(response.body, 'Failed to delete course');
+      throw ApiException(body, response.statusCode);
     }
   }
 
@@ -192,7 +231,8 @@ class CourseRemoteDataSource {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
-    throw ApiException('Failed to publish course', response.statusCode);
+    final body = _errorMessage(response.body, 'Failed to publish course');
+    throw ApiException(body, response.statusCode);
   }
 
   Future<List<Map<String, dynamic>>> fetchTopRatedCourses() async {

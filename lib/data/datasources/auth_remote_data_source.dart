@@ -4,34 +4,29 @@ import '../../constants/api_constants.dart';
 
 class AuthRemoteDataSource {
   Future<Map<String, dynamic>> login(String email, String password) async {
-    print('[DEBUG AUTH] Login attempt for: $email');
     final response = await http.post(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.login),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );
-    print('[DEBUG AUTH] Login response: ${response.statusCode}');
     if (response.statusCode == 200 || response.statusCode == 201) {
-      print('[DEBUG AUTH] Login successful');
       return jsonDecode(response.body);
     } else {
       String errorMsg = 'Failed to login';
       try {
         final body = jsonDecode(response.body);
-        if (body is Map &&
-            body['message'] != null &&
-            body['message'] is String &&
-            body['message'].toString().isNotEmpty) {
-          errorMsg = body['message'] as String;
+        if (body is Map) {
+          if (body['message'] is String &&
+              body['message'].toString().isNotEmpty) {
+            errorMsg = body['message'] as String;
+          } else if (body['error'] is String &&
+              body['error'].toString().isNotEmpty) {
+            errorMsg = body['error'] as String;
+          }
         }
       } catch (e) {
         // ignore JSON parse errors
       }
-      // Print backend error to terminal for debugging
-      // ignore: avoid_print
-      print(
-        '[LOGIN ERROR] Status: \\${response.statusCode} Body: \\${response.body}',
-      );
       throw Exception(errorMsg);
     }
   }
@@ -44,39 +39,77 @@ class AuthRemoteDataSource {
     String firstName,
     String lastName,
   ) async {
-    print('[DEBUG AUTH] Register attempt for: $email, role: $role');
+    final normalizedRole = role.toString().toUpperCase();
+    final body = {
+      'email': email,
+      'password': password,
+      'role': normalizedRole,
+      'username': username,
+      'name': '$firstName $lastName',
+      'firstName': firstName,
+      'lastName': lastName,
+      'first_name': firstName,
+      'last_name': lastName,
+    };
+    print('---------- [Register] POST body: ${jsonEncode(body)}');
     final response = await http.post(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.register),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-        'role': role.toUpperCase(),
-        'username': username,
-        'firstName': firstName,
-        'lastName': lastName,
-      }),
+      body: jsonEncode(body),
     );
+    print('---------- [Register] Status: ${response.statusCode}');
+    print('---------- [Register] Response: ${response.body}');
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body);
     } else {
       String errorMsg = 'Failed to register';
       try {
         final body = jsonDecode(response.body);
-        if (body is Map &&
-            body['message'] is String &&
-            body['message'].toString().isNotEmpty) {
-          errorMsg = body['message'] as String;
+        if (body is Map) {
+          if (body['message'] is String &&
+              body['message'].toString().isNotEmpty) {
+            errorMsg = body['message'] as String;
+          } else if (body['error'] is String &&
+              body['error'].toString().isNotEmpty) {
+            errorMsg = body['error'] as String;
+          } else if (body['errors'] is String &&
+              body['errors'].toString().isNotEmpty) {
+            errorMsg = body['errors'] as String;
+          } else if (body['errors'] is List && body['errors'].isNotEmpty) {
+            errorMsg = body['errors'].join(', ');
+          }
         }
-      } catch (_) {
+      } catch (e) {
         // ignore JSON parse errors
       }
-      // ignore: avoid_print
-      print(
-        '[REGISTER ERROR] Status: ${response.statusCode} Body: ${response.body}',
-      );
+      // Print backend error to terminal for debugging
       throw Exception(errorMsg);
     }
+  }
+
+  Future<Map<String, dynamic>> getMe(String token) async {
+    final response = await http.get(
+      Uri.parse(ApiConstants.baseUrl + ApiConstants.me),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch user profile');
+    }
+  }
+
+  Future<void> registerFcmToken(String authToken, String fcmToken) async {
+    try {
+      await http.post(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.registerFcmToken),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: jsonEncode({'token': fcmToken}),
+      );
+    } catch (_) {}
   }
 
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
@@ -86,45 +119,9 @@ class AuthRemoteDataSource {
       body: jsonEncode({'refreshToken': refreshToken}),
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    }
-    throw Exception('Failed to refresh token');
-  }
-
-  Future<void> logout(String token, {String? refreshToken}) async {
-    final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.logout),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        if (refreshToken != null && refreshToken.isNotEmpty)
-          'refreshToken': refreshToken,
-      }),
-    );
-    if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Failed to logout');
-    }
-  }
-
-  Future<Map<String, dynamic>> getMe(String token) async {
-    print(
-      '[DEBUG AUTH] getMe() called with token: ${token.substring(0, 20)}...',
-    );
-    final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.me),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    print('[DEBUG AUTH] getMe response: ${response.statusCode}');
-    if (response.statusCode == 200) {
-      print('[DEBUG AUTH] getMe successful');
       return jsonDecode(response.body);
     } else {
-      print(
-        '[DEBUG AUTH] getMe failed: ${response.statusCode} ${response.body}',
-      );
-      throw Exception('Failed to fetch user profile');
+      throw Exception('Failed to refresh token');
     }
   }
 }

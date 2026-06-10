@@ -24,18 +24,33 @@ class ReviewRemoteDataSource {
     int rating,
     String token,
   ) async {
+    final url = '${ApiConstants.baseUrl}${ApiConstants.reviews}';
+    print('---------- [Review] POST $url courseId=$courseId');
     final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.courseReviews(courseId)),
+      Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode({'review': review, 'rating': rating}),
+      body: jsonEncode({
+        'courseId': courseId,
+        'comment': review,
+        'review': review,
+        'content': review,
+        'rating': rating,
+      }),
     );
+    print('---------- [Review] Status: ${response.statusCode}');
+    print('---------- [Review] Response: ${response.body}');
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     } else {
-      throw ApiException('Failed to post review', response.statusCode);
+      String msg = 'Failed to post review';
+      try {
+        final b = jsonDecode(response.body);
+        if (b is Map) msg = (b['message'] ?? b['error'] ?? msg).toString();
+      } catch (_) {}
+      throw ApiException(msg, response.statusCode);
     }
   }
 

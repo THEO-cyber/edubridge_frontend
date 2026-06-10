@@ -22,3 +22,8 @@ class NotFoundException extends ApiException {
 class ValidationException extends ApiException {
   ValidationException(String message) : super(message);
 }
+
+class Requires2FAException implements Exception {
+  final String tempToken;
+  Requires2FAException(this.tempToken);
+}

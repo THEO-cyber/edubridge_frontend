@@ -54,14 +54,11 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
     required this.courseRepository,
   }) : super(CourseInitial()) {
     on<LoadCoursesEvent>((event, emit) async {
-      print('[DEBUG COURSE BLOC] LoadCoursesEvent triggered');
       emit(CourseLoading());
       try {
         final courses = await fetchCoursesUseCase();
-        print('[DEBUG COURSE BLOC] Loaded ${courses.length} courses');
         emit(CourseLoaded(courses));
       } catch (e) {
-        print('[DEBUG COURSE BLOC] Error loading courses: $e');
         emit(CourseError(e.toString()));
       }
     });

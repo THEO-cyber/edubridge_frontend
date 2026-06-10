@@ -1,8 +1,8 @@
-import '../../domain/entities/user_entity.dart';
+import '../../core/error_handling.dart';
 import '../../core/secure_storage.dart';
+import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_data_source.dart';
-import '../../core/error_handling.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
@@ -11,28 +11,53 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<UserEntity> login(String email, String password) async {
-    print('[DEBUG AUTH REPO] login() called for: $email');
     final data = await remoteDataSource.login(email, password);
-    print('[DEBUG AUTH REPO] Login response received');
+    print('---------- [AuthRepo] Raw login response keys: ${data.keys.toList()}');
+    print('---------- [AuthRepo] Raw login response: $data');
+
+    if (data['requires2FA'] == true) {
+      final tempToken = (data['tempToken'] ?? '').toString();
+      print('---------- [AuthRepo] 2FA required, tempToken length: ${tempToken.length}');
+      throw Requires2FAException(tempToken);
+    }
+
+    final userData = _extractUserData(data);
+
+    // Extract and save tokens
     final token = _extractToken(data);
     final refreshToken = _extractRefreshToken(data);
-    print('[DEBUG AUTH REPO] Token extracted: ${token != null ? 'YES' : 'NO'}');
+
+    print('---------- [AuthRepo] Extracted token: $token');
+    print('---------- [AuthRepo] Extracted refreshToken: $refreshToken');
+
     if (token != null && token.isNotEmpty) {
-      print('[DEBUG AUTH REPO] Saving token...');
       await SecureStorage.saveToken(token);
+      print('---------- [AuthRepo] Token SAVED to SecureStorage');
+    } else {
+      print('---------- [AuthRepo] WARNING: token is null/empty — NOT saved');
     }
     if (refreshToken != null && refreshToken.isNotEmpty) {
       await SecureStorage.saveRefreshToken(refreshToken);
     }
-    final userData = _extractUserData(data);
-    print('[DEBUG AUTH REPO] User data extracted: ${userData['email']}');
-    return UserEntity(
-      id: (userData['id'] ?? userData['_id'] ?? '').toString(),
+
+    var entity = UserEntity(
+      id: (userData['id'] ?? userData['userId'] ?? '').toString(),
       email: (userData['email'] ?? '').toString(),
-      role: (userData['role'] ?? '').toString(),
-      name: userData['name']?.toString(),
-      createdAt: DateTime.now(),
+      role: _extractRole(userData),
+      name: _extractUserName(userData),
+      createdAt: _parseCreatedAt(
+        userData['createdAt'] ?? userData['created_at'],
+      ),
     );
+
+    // If role didn't parse from the login response, fetch it from /auth/me
+    if (entity.role.isEmpty && token != null && token.isNotEmpty) {
+      try {
+        entity = await getMe(token);
+      } catch (_) {}
+    }
+
+    return entity;
   }
 
   @override
@@ -44,7 +69,6 @@ class AuthRepositoryImpl implements AuthRepository {
     String firstName,
     String lastName,
   ) async {
-    print('[DEBUG AUTH REPO] register() called for: $email, role: $role');
     final data = await remoteDataSource.register(
       email,
       password,
@@ -53,70 +77,112 @@ class AuthRepositoryImpl implements AuthRepository {
       firstName,
       lastName,
     );
-    print('[DEBUG AUTH REPO] Register response received');
+    final userData = _extractUserData(data);
+
+    // Extract and save tokens
     final token = _extractToken(data);
     final refreshToken = _extractRefreshToken(data);
+
     if (token != null && token.isNotEmpty) {
       await SecureStorage.saveToken(token);
     }
     if (refreshToken != null && refreshToken.isNotEmpty) {
       await SecureStorage.saveRefreshToken(refreshToken);
     }
-    final userData = _extractUserData(data);
-    return UserEntity(
-      id: (userData['id'] ?? userData['_id'] ?? '').toString(),
-      email: (userData['email'] ?? '').toString(),
-      role: (userData['role'] ?? '').toString(),
-      name: userData['name']?.toString(),
-      createdAt: DateTime.now(),
-    );
-  }
 
-  @override
-  Future<String> refreshToken() async {
-    final refreshToken = await SecureStorage.getRefreshToken();
-    if (refreshToken == null || refreshToken.isEmpty) {
-      throw UnauthorizedException('No refresh token available');
-    }
-    final data = await remoteDataSource.refreshToken(refreshToken);
-    final newToken = _extractToken(data);
-    final newRefreshToken = _extractRefreshToken(data);
-    if (newToken != null && newToken.isNotEmpty) {
-      await SecureStorage.saveToken(newToken);
-    }
-    if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
-      await SecureStorage.saveRefreshToken(newRefreshToken);
-    }
-    if (newToken == null || newToken.isEmpty) {
-      throw UnauthorizedException('Failed to refresh token');
-    }
-    return newToken;
-  }
-
-  @override
-  Future<UserEntity> getMe(String token) async {
-    final data = await remoteDataSource.getMe(token);
-    final userData = _extractUserData(data);
     return UserEntity(
-      id: (userData['id'] ?? userData['_id'] ?? '').toString(),
+      id: (userData['id'] ?? userData['userId'] ?? '').toString(),
       email: (userData['email'] ?? '').toString(),
-      role: (userData['role'] ?? '').toString(),
-      name: userData['name']?.toString(),
-      createdAt: DateTime.now(),
+      role: _extractRole(userData),
+      name: _extractUserName(userData),
+      createdAt: _parseCreatedAt(
+        userData['createdAt'] ?? userData['created_at'],
+      ),
     );
   }
 
   Map<String, dynamic> _extractUserData(Map<String, dynamic> data) {
-    final user = data['user'];
-    if (user is Map<String, dynamic>) {
-      return user;
+    if (data.containsKey('id') && data.containsKey('email')) {
+      return data;
     }
     final dataNode = data['data'];
-    if (dataNode is Map<String, dynamic> &&
-        dataNode['user'] is Map<String, dynamic>) {
-      return dataNode['user'] as Map<String, dynamic>;
+    if (dataNode is Map<String, dynamic>) {
+      if (dataNode.containsKey('id') && dataNode.containsKey('email')) {
+        return dataNode;
+      }
+      if (dataNode['user'] is Map<String, dynamic>) {
+        return dataNode['user'] as Map<String, dynamic>;
+      }
+    }
+    if (data['user'] is Map<String, dynamic>) {
+      return data['user'] as Map<String, dynamic>;
     }
     return data;
+  }
+
+  String _extractRole(Map<String, dynamic> data) {
+    final raw = data['role'] ?? data['userRole'] ?? data['roles'];
+    if (raw == null) return '';
+    String result;
+    if (raw is String) {
+      result = raw;
+    } else if (raw is List && raw.isNotEmpty) {
+      final first = raw.first;
+      result = first is Map ? (first['name'] ?? first['role'] ?? first).toString() : first.toString();
+    } else {
+      result = raw.toString();
+    }
+    return result.trim();
+  }
+
+  String _extractUserName(Map<String, dynamic> data) {
+    if (data['name'] is String && (data['name'] as String).isNotEmpty) {
+      return data['name'] as String;
+    }
+    final firstName = data['firstName'] ?? data['first_name'] ?? '';
+    final lastName = data['lastName'] ?? data['last_name'] ?? '';
+    if (firstName != null && lastName != null) {
+      return '${firstName.toString().trim()} ${lastName.toString().trim()}'
+          .trim();
+    }
+    if (data['username'] is String) {
+      return data['username'] as String;
+    }
+    return '';
+  }
+
+  @override
+  Future<UserEntity> getMe(String token) async {
+    final raw = await remoteDataSource.getMe(token);
+    final data = _extractUserData(raw);
+    return UserEntity(
+      id: (data['id'] ?? '').toString(),
+      email: (data['email'] ?? '').toString(),
+      role: _extractRole(data),
+      name: _extractUserName(data),
+      createdAt: _parseCreatedAt(data['createdAt'] ?? data['created_at']),
+    );
+  }
+
+  @override
+  Future<void> refreshToken() async {
+    final refreshToken = await SecureStorage.getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      throw Exception('No refresh token available');
+    }
+
+    final data = await remoteDataSource.refreshToken(refreshToken);
+    final newToken = _extractToken(data);
+    final newRefreshToken = _extractRefreshToken(data);
+
+    if (newToken == null || newToken.isEmpty) {
+      throw Exception('Failed to refresh token');
+    }
+
+    await SecureStorage.saveToken(newToken);
+    if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
+      await SecureStorage.saveRefreshToken(newRefreshToken);
+    }
   }
 
   String? _extractToken(Map<String, dynamic> data) {
@@ -141,5 +207,16 @@ class AuthRepositoryImpl implements AuthRepository {
       }
     }
     return null;
+  }
+
+  DateTime _parseCreatedAt(dynamic value) {
+    if (value is String) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    return DateTime.now();
   }
 }

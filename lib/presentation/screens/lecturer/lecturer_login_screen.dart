@@ -1,6 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:http/http.dart' as http;
+import '../../../constants/api_constants.dart';
+import '../../../core/secure_storage.dart';
 import '../../blocs/auth_bloc.dart';
+import '../../widgets/two_fa_verification_dialog.dart';
+import '../forgot_password_screen.dart';
 
 class LecturerLoginScreen extends StatefulWidget {
   const LecturerLoginScreen({Key? key}) : super(key: key);
@@ -12,8 +18,85 @@ class LecturerLoginScreen extends StatefulWidget {
 class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  // bool isLoading = false; // handled by Bloc
   bool obscurePassword = true;
+
+  Future<void> _verifyAndNavigate(BuildContext context) async {
+    try {
+      final token = await SecureStorage.getToken();
+      print('---------- [LecturerLogin] Token read from SecureStorage: $token');
+      if (token == null || token.isEmpty) {
+        print('---------- [LecturerLogin] ERROR: token null/empty after AuthSuccess');
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Login succeeded but no token was saved. Please try again.')),
+        );
+        return;
+      }
+      print('---------- [LecturerLogin] Calling /auth/me with token...');
+
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.me}'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (!context.mounted) return;
+
+      print('---------- [LecturerLogin] /auth/me status: ${response.statusCode}');
+      print('---------- [LecturerLogin] /auth/me response: ${response.body}');
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        // Extract role from flat or nested response
+        String role = '';
+        if (body is Map) {
+          if (body['role'] is String) {
+            role = body['role'] as String;
+          } else if (body['user'] is Map && body['user']['role'] is String) {
+            role = body['user']['role'] as String;
+          } else if (body['data'] is Map && body['data']['role'] is String) {
+            role = body['data']['role'] as String;
+          }
+        }
+        final normalized = role.toLowerCase().trim();
+        print('---------- [LecturerLogin] Role extracted: "$normalized"');
+        final isInstructor = normalized.contains('instruct') ||
+            normalized.contains('lect') ||
+            normalized.contains('teach') ||
+            normalized.contains('tutor') ||
+            normalized.contains('faculty') ||
+            normalized.contains('admin');
+
+        if (isInstructor) {
+          await SecureStorage.saveRole('instructor');
+          if (!context.mounted) return;
+          Navigator.pushNamedAndRemoveUntil(
+              context, '/lecturer-dashboard', (_) => false);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                normalized.isEmpty
+                    ? 'Access denied: role not found in profile. Response: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}'
+                    : 'Access denied: account role "$normalized" is not an instructor role.',
+              ),
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not verify role (${response.statusCode}): ${response.body.length > 150 ? response.body.substring(0, 150) : response.body}'),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error verifying role: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,26 +104,19 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: BlocConsumer<AuthBloc, AuthState>(
-        listener: (context, state) {
+        listener: (context, state) async {
           if (state is AuthFailure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Invalid email or password. Please try again.'),
-              ),
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(state.message)));
+          } else if (state is Auth2FARequired) {
+            await showTwoFAVerificationDialog(
+              context: context,
+              tempToken: state.tempToken,
+              onVerified: (ctx) => _verifyAndNavigate(ctx),
             );
           } else if (state is AuthSuccess) {
-            final normalizedRole = state.user.role.toLowerCase();
-            if (normalizedRole == 'lecturer' ||
-                normalizedRole == 'teacher' ||
-                normalizedRole == 'instructor') {
-              Navigator.pushReplacementNamed(context, '/lecturer-dashboard');
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Access denied: Not a lecturer account'),
-                ),
-              );
-            }
+            _verifyAndNavigate(context);
           }
         },
         builder: (context, state) {
@@ -249,7 +325,11 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: () {},
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ForgotPasswordScreen(),
+                              ),
+                            ),
                             child: Text(
                               'Forgot Password?',
                               style: TextStyle(
@@ -330,60 +410,6 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Divider(
-                                color: Colors.grey.shade300,
-                                thickness: 1,
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              child: Text(
-                                'or',
-                                style: TextStyle(
-                                  color: Colors.blueGrey[300],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Divider(
-                                color: Colors.grey.shade300,
-                                thickness: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () {},
-                            icon: Image.asset(
-                              'assets/icons/google.png',
-                              width: 30,
-                              height: 30,
-                            ),
-                            label: const Text(
-                              'Continue with Google',
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              side: BorderSide(color: Colors.grey.shade300),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                          ),
-                        ),
                         const SizedBox(height: 28),
                         Container(
                           width: double.infinity,

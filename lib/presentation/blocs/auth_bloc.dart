@@ -1,7 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/error_handling.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
+import '../../services/notification_service.dart';
 import '../../core/secure_storage.dart';
 
 abstract class AuthEvent {}
@@ -29,8 +31,6 @@ class RegisterEvent extends AuthEvent {
   );
 }
 
-class LogoutEvent extends AuthEvent {}
-
 abstract class AuthState {}
 
 class AuthInitial extends AuthState {}
@@ -47,6 +47,11 @@ class AuthFailure extends AuthState {
   AuthFailure(this.message);
 }
 
+class Auth2FARequired extends AuthState {
+  final String tempToken;
+  Auth2FARequired(this.tempToken);
+}
+
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final LoginUseCase loginUseCase;
   final RegisterUseCase registerUseCase;
@@ -54,25 +59,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this.loginUseCase, required this.registerUseCase})
     : super(AuthInitial()) {
     on<LoginEvent>((event, emit) async {
-      print('[DEBUG AUTH BLOC] LoginEvent triggered for: ${event.email}');
       emit(AuthLoading());
       try {
-        print('[DEBUG AUTH BLOC] Calling loginUseCase...');
         final user = await loginUseCase(event.email, event.password);
-        print('[DEBUG AUTH BLOC] Login successful, user role: ${user.role}');
         emit(AuthSuccess(user));
+        final token = await SecureStorage.getToken();
+        if (token != null) NotificationService.registerToken(token);
       } catch (e) {
-        print('[AUTH_BLOC LOGIN ERROR] ${e.toString()}');
-        emit(AuthFailure('Invalid email or password. Please try again.'));
+        if (e is Requires2FAException) {
+          emit(Auth2FARequired(e.tempToken));
+          return;
+        }
+        final message = e.toString().replaceFirst('Exception: ', '');
+        emit(
+          AuthFailure(
+            message.isNotEmpty
+                ? message
+                : 'Invalid email or password. Please try again.',
+          ),
+        );
       }
     });
     on<RegisterEvent>((event, emit) async {
-      print(
-        '[DEBUG AUTH BLOC] RegisterEvent triggered for: ${event.email}, role: ${event.role}',
-      );
       emit(AuthLoading());
       try {
-        print('[DEBUG AUTH BLOC] Calling registerUseCase...');
         final user = await registerUseCase(
           event.email,
           event.password,
@@ -81,22 +91,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           event.firstName,
           event.lastName,
         );
-        print('[DEBUG AUTH BLOC] Register successful, user role: ${user.role}');
         emit(AuthSuccess(user));
+        final token = await SecureStorage.getToken();
+        if (token != null) NotificationService.registerToken(token);
       } catch (e) {
-        print('[AUTH_BLOC REGISTER ERROR] ${e.toString()}');
-        emit(AuthFailure('Registration failed. Please try again.'));
-      }
-    });
-    on<LogoutEvent>((event, emit) async {
-      print('[DEBUG AUTH BLOC] LogoutEvent triggered');
-      try {
-        await SecureStorage.deleteAllTokens();
-        print('[DEBUG AUTH BLOC] Tokens deleted, returning to AuthInitial');
-        emit(AuthInitial());
-      } catch (e) {
-        print('[AUTH_BLOC LOGOUT ERROR] ${e.toString()}');
-        emit(AuthFailure('Logout failed'));
+        final message = e.toString().replaceFirst('Exception: ', '');
+        emit(
+          AuthFailure(
+            message.isNotEmpty
+                ? message
+                : 'Registration failed. Please try again.',
+          ),
+        );
       }
     });
   }

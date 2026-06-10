@@ -45,5 +45,26 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Camera & microphone — live video calls (Jitsi Meet WebView) -->
+	<key>NSCameraUsageDescription</key>
+	<string>EduBridge uses the camera for live video sessions with your instructor.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>EduBridge uses the microphone for live audio in video sessions.</string>
+
+	<!-- Photo library — profile picture picker -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>EduBridge needs access to your photo library to set a profile picture.</string>
+
+	<!-- Allow WebView inline media playback without requiring full-screen -->
+	<key>WebKitMediaPlaybackAllowsInline</key>
+	<true/>
+
+	<!-- Allow HTTP traffic to local API during development -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

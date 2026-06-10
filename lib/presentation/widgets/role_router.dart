@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../screens/student_dashboard.dart';
-import '../screens/teacher_dashboard.dart';
+import '../screens/dashboard_screen.dart';
+import '../screens/lecturer_dashboard_screen.dart';
 
 class RoleRouter extends StatelessWidget {
   final String role;
@@ -8,9 +8,10 @@ class RoleRouter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (role == 'INSTRUCTOR') {
-      return const TeacherDashboard();
+    final normalized = role.toUpperCase();
+    if (normalized == 'INSTRUCTOR' || normalized == 'LECTURER') {
+      return const LecturerDashboardScreen();
     }
-    return const StudentDashboard();
+    return const DashboardScreen();
   }
 }

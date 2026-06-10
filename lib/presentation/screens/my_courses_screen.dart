@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/secure_storage.dart';
 import '../blocs/enrollment_bloc.dart';
+import '../blocs/lesson_bloc_provider.dart';
+import 'lesson_list_screen.dart';
 
 class MyCoursesScreen extends StatefulWidget {
   const MyCoursesScreen({super.key});
@@ -93,7 +95,9 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
                     itemCount: enrollments.length,
                     itemBuilder: (context, index) {
                       final enrollment = enrollments[index];
-                      final courseId = enrollment['courseId'] ?? '';
+                      final courseId = (enrollment['courseId'] ?? '').toString();
+                      final enrollmentId =
+                          (enrollment['id'] ?? enrollment['_id'] ?? '').toString();
                       final courseTitle =
                           enrollment['courseTitle'] ?? 'Unknown Course';
                       final instructorName =
@@ -104,9 +108,16 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
                         margin: const EdgeInsets.only(bottom: 12),
                         child: InkWell(
                           onTap: () {
-                            Navigator.pushNamed(
+                            Navigator.push(
                               context,
-                              '/course-detail/$courseId',
+                              MaterialPageRoute(
+                                builder: (_) => LessonBlocProvider(
+                                  child: LessonListScreen(
+                                    courseId: courseId,
+                                    enrollmentId: enrollmentId,
+                                  ),
+                                ),
+                              ),
                             );
                           },
                           child: Column(

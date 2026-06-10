@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/secure_storage.dart';
 import '../blocs/auth_bloc.dart';
+import '../widgets/two_fa_verification_dialog.dart';
+import 'forgot_password_screen.dart';
 
 class UserLoginScreen extends StatefulWidget {
   const UserLoginScreen({Key? key}) : super(key: key);
@@ -29,16 +32,29 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
               vertical: 32,
             ),
             child: BlocConsumer<AuthBloc, AuthState>(
-              listener: (context, state) {
+              listener: (context, state) async {
                 if (state is AuthFailure) {
-                  print(state.message.replaceAll('Exception: ', ''));
-                  // Always show a user-friendly message
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Login failed. Please try again.")),
+                  final msg = state.message.replaceAll('Exception: ', '');
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text(msg)));
+                } else if (state is Auth2FARequired) {
+                  await showTwoFAVerificationDialog(
+                    context: context,
+                    tempToken: state.tempToken,
+                    onVerified: (ctx) async {
+                      await SecureStorage.saveRole('student');
+                      if (ctx.mounted) {
+                        Navigator.pushNamedAndRemoveUntil(
+                            ctx, '/student-dashboard', (_) => false);
+                      }
+                    },
                   );
                 } else if (state is AuthSuccess) {
-                  print("Login Successful");
-                  Navigator.pushReplacementNamed(context, '/student-dashboard');
+                  await SecureStorage.saveRole('student');
+                  if (context.mounted) {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context, '/student-dashboard', (_) => false);
+                  }
                 }
               },
               builder: (context, state) {
@@ -115,7 +131,11 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ForgotPasswordScreen(),
+                          ),
+                        ),
                         child: const Text(
                           'Forgot Password?',
                           style: TextStyle(color: Colors.blueGrey),

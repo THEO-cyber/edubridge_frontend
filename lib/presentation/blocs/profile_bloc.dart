@@ -45,17 +45,11 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     required this.updateProfileUseCase,
   }) : super(ProfileInitial()) {
     on<LoadProfileEvent>((event, emit) async {
-      print('[DEBUG PROFILE BLOC] LoadProfileEvent triggered');
       emit(ProfileLoading());
       try {
-        print('[DEBUG PROFILE BLOC] Calling fetchProfileUseCase...');
         final profile = await fetchProfileUseCase(event.token);
-        print(
-          '[DEBUG PROFILE BLOC] Profile loaded: ${profile['email'] ?? 'unknown'}',
-        );
         emit(ProfileLoaded(profile));
       } catch (e) {
-        print('[DEBUG PROFILE BLOC] Error loading profile: $e');
         final errorMessage = e.toString().toLowerCase();
         if (e is UnauthorizedException ||
             (e is ApiException && e.code == 403) ||
@@ -69,17 +63,13 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       }
     });
     on<UpdateProfileEvent>((event, emit) async {
-      print('[DEBUG PROFILE BLOC] UpdateProfileEvent triggered');
       emit(ProfileLoading());
       try {
-        print('[DEBUG PROFILE BLOC] Calling updateProfileUseCase...');
         await updateProfileUseCase(event.data, event.token);
-        print('[DEBUG PROFILE BLOC] Profile updated, refreshing...');
         emit(ProfileUpdateSuccess());
         final profile = await fetchProfileUseCase(event.token);
         emit(ProfileLoaded(profile));
       } catch (e) {
-        print('[DEBUG PROFILE BLOC] Error updating profile: $e');
         final errorMessage = e.toString().toLowerCase();
         if (e is UnauthorizedException ||
             (e is ApiException && e.code == 403) ||
@@ -93,7 +83,6 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       }
     });
     on<ResetProfileEvent>((event, emit) async {
-      print('[DEBUG PROFILE BLOC] ResetProfileEvent triggered');
       emit(ProfileInitial());
     });
   }

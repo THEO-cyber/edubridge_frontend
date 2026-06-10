@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/progress_bloc.dart';
 import '../blocs/profile_bloc.dart';
 import '../../core/secure_storage.dart';
+import '../../data/datasources/auth_remote_data_source.dart';
+import '../../data/datasources/profile_remote_data_source.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({Key? key}) : super(key: key);
@@ -13,6 +15,7 @@ class StudentDashboardScreen extends StatefulWidget {
 
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   late String _token;
+  int _certCount = 0;
 
   @override
   void initState() {
@@ -20,11 +23,22 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     _loadToken();
   }
 
-  void _loadToken() async {
+  Future<void> _loadToken() async {
     _token = await SecureStorage.getToken() ?? '';
     if (mounted && _token.isNotEmpty) {
       context.read<ProgressBloc>().add(FetchEnrolledCoursesEvent(_token));
+      _fetchCertCount();
     }
+  }
+
+  Future<void> _fetchCertCount() async {
+    try {
+      final ds = ProfileRemoteDataSource(AuthRemoteDataSource());
+      final analytics = await ds.fetchInstructorAnalytics(_token);
+      // For students use enrollment endpoint
+      final count = analytics['totalCertificates'] ?? 0;
+      if (mounted) setState(() => _certCount = count as int);
+    } catch (_) {}
   }
 
   @override
@@ -172,14 +186,29 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   Widget _buildStatsSection() {
-    return Row(
-      children: [
-        _buildStatCard('Courses', '5'),
-        const SizedBox(width: 12),
-        _buildStatCard('Certificates', '2'),
-        const SizedBox(width: 12),
-        _buildStatCard('Hours', '45'),
-      ],
+    return BlocBuilder<ProgressBloc, ProgressState>(
+      builder: (context, state) {
+        int courseCount = 0;
+        int completedCount = 0;
+        double totalHours = 0;
+        if (state is EnrolledCoursesLoaded) {
+          courseCount = state.courses.length;
+          completedCount =
+              state.courses.where((c) => c.progressPercentage >= 100).length;
+          totalHours = state.courses.fold(
+              0.0, (sum, c) => sum + (c.progressPercentage / 100 * 2));
+        }
+        return Row(
+          children: [
+            _buildStatCard('Courses', '$courseCount'),
+            const SizedBox(width: 12),
+            _buildStatCard(
+                'Certificates', '${_certCount > 0 ? _certCount : completedCount}'),
+            const SizedBox(width: 12),
+            _buildStatCard('Hours', totalHours.toStringAsFixed(1)),
+          ],
+        );
+      },
     );
   }
 
@@ -212,17 +241,29 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       children: [
         Text(
           'Recent Activity',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(context)
+              .textTheme
+              .titleLarge
+              ?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        _buildActivityItem(
-          'Completed lesson: Introduction to Flutter',
-          '2 hours ago',
+        BlocBuilder<ProgressBloc, ProgressState>(
+          builder: (context, state) {
+            if (state is EnrolledCoursesLoaded && state.courses.isNotEmpty) {
+              return Column(
+                children: state.courses.take(3).map((c) {
+                  final pct = c.progressPercentage;
+                  final label = pct >= 100
+                      ? 'Completed course'
+                      : 'In progress (${pct.toStringAsFixed(0)}%)';
+                  return _buildActivityItem(
+                      '$label: ${c.courseId}', 'Enrolled');
+                }).toList(),
+              );
+            }
+            return const SizedBox.shrink();
+          },
         ),
-        _buildActivityItem('Received certificate: Dart Basics', '1 day ago'),
-        _buildActivityItem('Joined new course: Advanced Flutter', '3 days ago'),
       ],
     );
   }

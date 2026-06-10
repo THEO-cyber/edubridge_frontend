@@ -66,7 +66,8 @@ class PaymentRemoteDataSource {
     }
   }
 
-  Future<void> applyCoupon(
+  /// Returns coupon info: { discountAmount, discountPercentage, finalPrice, ... }
+  Future<Map<String, dynamic>> applyCoupon(
     String couponCode,
     String courseId,
     String token,
@@ -79,8 +80,21 @@ class PaymentRemoteDataSource {
       },
       body: jsonEncode({'couponCode': couponCode, 'courseId': courseId}),
     );
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw ApiException('Failed to apply coupon', response.statusCode);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        final inner = data['data'];
+        return inner is Map<String, dynamic> ? inner : data;
+      }
+      return {};
     }
+    String errorMsg = 'Invalid or expired coupon code';
+    try {
+      final body = jsonDecode(response.body);
+      if (body is Map && body['message'] is String) {
+        errorMsg = body['message'] as String;
+      }
+    } catch (_) {}
+    throw ApiException(errorMsg, response.statusCode);
   }
 }

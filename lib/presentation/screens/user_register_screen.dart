@@ -1,6 +1,7 @@
-import 'package:edubridge/presentation/blocs/auth_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/secure_storage.dart';
+import '../blocs/auth_bloc.dart';
 
 class UserRegisterScreen extends StatefulWidget {
   const UserRegisterScreen({Key? key}) : super(key: key);
@@ -32,15 +33,17 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
               vertical: 32,
             ),
             child: BlocConsumer<AuthBloc, AuthState>(
-              listener: (context, state) {
+              listener: (context, state) async {
                 if (state is AuthFailure) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Registration failed. Please try again.'),
-                    ),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(state.message)));
                 } else if (state is AuthSuccess) {
-                  Navigator.pushReplacementNamed(context, '/user-login');
+                  await SecureStorage.saveRole('student');
+                  if (context.mounted) {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context, '/student-dashboard', (_) => false);
+                  }
                 }
               },
               builder: (context, state) {
@@ -182,15 +185,17 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                                   );
                                   return;
                                 }
-                                // Split name into username, firstName, lastName
+                                // Split name into firstName, lastName
                                 final parts = name.split(' ');
-                                final firstName = parts.isNotEmpty
-                                    ? parts.first
-                                    : name;
+                                final firstName = parts.first;
                                 final lastName = parts.length > 1
                                     ? parts.sublist(1).join(' ')
                                     : '';
-                                final username = name;
+                                // Username from email prefix, no spaces
+                                final username = email
+                                    .split('@')
+                                    .first
+                                    .replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
                                 context.read<AuthBloc>().add(
                                   RegisterEvent(
                                     email,

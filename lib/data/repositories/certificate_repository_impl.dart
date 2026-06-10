@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import '../../domain/entities/certificate_entity.dart';
 import '../../domain/repositories/certificate_repository.dart';
 import '../datasources/certificate_remote_data_source.dart';
@@ -44,7 +45,7 @@ class CertificateRepositoryImpl implements CertificateRepository {
     );
   }
 
-  Future<String> downloadCertificate(String certificateId, String token) async {
+  Future<Uint8List> downloadCertificate(String certificateId, String token) async {
     return await remoteDataSource.downloadCertificate(certificateId, token);
   }
 

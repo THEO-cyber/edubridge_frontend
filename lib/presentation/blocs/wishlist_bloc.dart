@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/course_entity.dart';
 import '../../domain/usecases/fetch_wishlist_usecase.dart';
 import '../../domain/usecases/add_to_wishlist_usecase.dart';
+import '../../data/datasources/wishlist_remote_data_source.dart';
 
 abstract class WishlistEvent {}
 
@@ -15,6 +16,14 @@ class AddToWishlistEvent extends WishlistEvent {
   final String token;
   AddToWishlistEvent(this.courseId, this.token);
 }
+
+class RemoveFromWishlistEvent extends WishlistEvent {
+  final String courseId;
+  final String token;
+  RemoveFromWishlistEvent(this.courseId, this.token);
+}
+
+class ClearWishlistEvent extends WishlistEvent {}
 
 abstract class WishlistState {}
 
@@ -61,5 +70,19 @@ class WishlistBloc extends Bloc<WishlistEvent, WishlistState> {
         emit(WishlistError(e.toString()));
       }
     });
+    on<RemoveFromWishlistEvent>((event, emit) async {
+      emit(WishlistLoading());
+      try {
+        await WishlistRemoteDataSource().removeFromWishlist(
+          event.courseId,
+          event.token,
+        );
+        final wishlist = await fetchWishlistUseCase(event.token);
+        emit(WishlistLoaded(wishlist));
+      } catch (e) {
+        emit(WishlistError(e.toString()));
+      }
+    });
+    on<ClearWishlistEvent>((event, emit) => emit(WishlistInitial()));
   }
 }
