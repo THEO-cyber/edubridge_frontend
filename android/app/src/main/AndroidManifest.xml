@@ -1,7 +1,12 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Screen sharing (foreground service required for MediaProjection on Android 10+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
 
     <!-- Camera & microphone — required for live video calls -->
     <uses-permission android:name="android.permission.CAMERA"/>
@@ -59,6 +64,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Override flutter_background's service to declare mediaProjection type required on Android 14+ -->
+        <service
+            android:name="de.julianassmann.flutter_background.IsolateHolderService"
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false"
+            tools:node="merge" />
     </application>
 
     <queries>

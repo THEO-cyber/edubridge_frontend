@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ (API 31) splash screen override.
+         All colours match the Flutter SplashScreen background (#1A237E) so the
+         system splash is visually indistinguishable from a plain navy screen —
+         no app-icon pop visible before the Flutter splash animation begins. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <!-- Splash background: same navy as SplashScreen.backgroundColor -->
+        <item name="android:windowSplashScreenBackground">#1A237E</item>
+        <!-- Icon: navy-filled vector — invisible against the navy background -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <!-- Icon backing circle: also navy, so no white ring is visible -->
+        <item name="android:windowSplashScreenIconBackgroundColor">#1A237E</item>
+        <!-- Dismiss the system splash as quickly as possible -->
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/brand_navy</item>
+    </style>
+</resources>

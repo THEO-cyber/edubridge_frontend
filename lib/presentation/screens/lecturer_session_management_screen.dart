@@ -197,6 +197,7 @@ class _LecturerSessionManagementScreenState
           accessToken: accessToken,
           livekitUrl: livekitUrl,
           sessionTitle: sessionTitle,
+          isInstructor: true,
         ),
       ));
       _loadAll();
