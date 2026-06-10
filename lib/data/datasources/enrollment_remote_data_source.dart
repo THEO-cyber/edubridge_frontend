@@ -6,7 +6,7 @@ import '../../core/error_handling.dart';
 class EnrollmentRemoteDataSource {
   Future<void> enrollInCourse(String courseId, String token) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.enroll),
+      Uri.parse(ApiConstants.baseUrl + ApiConstants.enrollFree(courseId)),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
