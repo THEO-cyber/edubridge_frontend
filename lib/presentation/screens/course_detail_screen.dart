@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/error_handling.dart';
 import '../../core/secure_storage.dart';
+import '../../data/datasources/progress_remote_data_source.dart';
 import '../../data/datasources/wishlist_remote_data_source.dart';
 import '../../data/datasources/review_remote_data_source.dart';
 import '../blocs/enrollment_bloc.dart';
@@ -68,11 +69,26 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
   final _wishlistDs = WishlistRemoteDataSource();
   bool _inWishlist = false;
   bool _wishlistLoading = false;
+  bool _isEnrolled = false;
 
   @override
   void initState() {
     super.initState();
     _checkWishlist();
+    _checkEnrollment();
+  }
+
+  Future<void> _checkEnrollment() async {
+    try {
+      final token = await SecureStorage.getToken();
+      if (token == null || token.isEmpty) return;
+      final courses = await ProgressRemoteDataSource().fetchEnrolledCourses(token);
+      final enrolled = courses.any((c) {
+        final id = (c['courseId'] ?? c['course']?['id'] ?? c['id'] ?? '').toString();
+        return id == widget.courseId;
+      });
+      if (mounted) setState(() => _isEnrolled = enrolled);
+    } catch (_) {}
   }
 
   Future<void> _checkWishlist() async {
@@ -140,7 +156,11 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocListener<EnrollmentBloc, EnrollmentState>(
+      listener: (context, state) {
+        if (state is EnrollmentSuccess) setState(() => _isEnrolled = true);
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
         backgroundColor: _kNavy,
@@ -272,13 +292,14 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _RatingSection(courseId: widget.courseId),
+                  if (_isEnrolled) _RatingSection(courseId: widget.courseId),
                 ],
               ),
             ),
           ],
         ),
       ),
+    ),
     );
   }
 
