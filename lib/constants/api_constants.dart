@@ -1,5 +1,5 @@
 class ApiConstants {
-  static const String baseUrl = 'http://192.168.1.152:3000/api/v1';
+  static const String baseUrl = 'http://10.167.251.55:3000/api/v1';
 
   // Auth
   static const String login = '/auth/login';
@@ -193,7 +193,7 @@ class ApiConstants {
   static String wishlistCourse(String courseId) => '$wishlist/$courseId';
   static String wishlistCheck(String courseId) =>
       '$wishlist/$courseId/check';
-  static String courseReviews(String courseId) => '$reviews/courses/$courseId';
+  static String courseReviews(String courseId) => '$reviews/course/$courseId';
   static String myReviewForCourse(String courseId) => '$myReviews/$courseId';
   static String liveSessionConfirm(String requestId) =>
       '$liveSessionRequests/$requestId/confirm';

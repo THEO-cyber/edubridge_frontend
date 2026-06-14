@@ -477,12 +477,15 @@ class _RatingSectionState extends State<_RatingSection> {
       _loadReviews(); // refresh list after posting
     } catch (e) {
       if (!mounted) return;
+      final msg = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
+      final alreadyReviewed = e is ApiException && e.code == 409;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: Colors.red,
+          content: Text(alreadyReviewed ? 'You have already reviewed this course.' : msg),
+          backgroundColor: alreadyReviewed ? Colors.orange[700] : Colors.red,
         ),
       );
+      if (alreadyReviewed) _loadReviews(); // fetch existing reviews so they appear
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
