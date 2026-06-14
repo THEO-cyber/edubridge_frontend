@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
 import '../../core/error_handling.dart';
+import '../../core/http_utils.dart';
 import '../../core/secure_storage.dart';
 import '../../data/datasources/course_remote_data_source.dart';
 import '../../data/datasources/wishlist_remote_data_source.dart';
@@ -50,7 +50,7 @@ class _LandingPageState extends State<LandingPage> {
     try {
       final token = await SecureStorage.getToken();
       if (token == null || token.isEmpty) return;
-      final r = await http.get(
+      final r = await apiGet(
         Uri.parse(ApiConstants.baseUrl + ApiConstants.notifications),
         headers: {
           'Content-Type': 'application/json',
@@ -71,7 +71,7 @@ class _LandingPageState extends State<LandingPage> {
 
   Future<void> _loadCategories() async {
     try {
-      final r = await http.get(
+      final r = await apiGet(
         Uri.parse(ApiConstants.baseUrl + ApiConstants.searchCategories),
         headers: {'Content-Type': 'application/json'},
       );

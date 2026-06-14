@@ -1,33 +1,33 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
+import '../../core/http_utils.dart';
 
 class AuthRemoteDataSource {
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.login),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
-    );
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return jsonDecode(response.body);
-    } else {
-      String errorMsg = 'Failed to login';
+    try {
+      final response = await apiPost(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.login),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      }
+      String errorMsg = 'Invalid email or password';
       try {
         final body = jsonDecode(response.body);
         if (body is Map) {
-          if (body['message'] is String &&
-              body['message'].toString().isNotEmpty) {
+          if (body['message'] is String && body['message'].toString().isNotEmpty) {
             errorMsg = body['message'] as String;
-          } else if (body['error'] is String &&
-              body['error'].toString().isNotEmpty) {
+          } else if (body['error'] is String && body['error'].toString().isNotEmpty) {
             errorMsg = body['error'] as String;
           }
         }
-      } catch (e) {
-        // ignore JSON parse errors
-      }
+      } catch (_) {}
       throw Exception(errorMsg);
+    } catch (e) {
+      if (e is Exception && e.toString().startsWith('Exception: ')) rethrow;
+      throw Exception(networkErrorMessage(e));
     }
   }
 
@@ -39,11 +39,10 @@ class AuthRemoteDataSource {
     String firstName,
     String lastName,
   ) async {
-    final normalizedRole = role.toString().toUpperCase();
-    final body = {
+    final bodyMap = {
       'email': email,
       'password': password,
-      'role': normalizedRole,
+      'role': role.toUpperCase(),
       'username': username,
       'name': '$firstName $lastName',
       'firstName': firstName,
@@ -51,57 +50,52 @@ class AuthRemoteDataSource {
       'first_name': firstName,
       'last_name': lastName,
     };
-    print('---------- [Register] POST body: ${jsonEncode(body)}');
-    final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.register),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
-    print('---------- [Register] Status: ${response.statusCode}');
-    print('---------- [Register] Response: ${response.body}');
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return jsonDecode(response.body);
-    } else {
+    try {
+      final response = await apiPost(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.register),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(bodyMap),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      }
       String errorMsg = 'Failed to register';
       try {
-        final body = jsonDecode(response.body);
-        if (body is Map) {
-          if (body['message'] is String &&
-              body['message'].toString().isNotEmpty) {
-            errorMsg = body['message'] as String;
-          } else if (body['error'] is String &&
-              body['error'].toString().isNotEmpty) {
-            errorMsg = body['error'] as String;
-          } else if (body['errors'] is String &&
-              body['errors'].toString().isNotEmpty) {
-            errorMsg = body['errors'] as String;
-          } else if (body['errors'] is List && body['errors'].isNotEmpty) {
-            errorMsg = body['errors'].join(', ');
+        final b = jsonDecode(response.body);
+        if (b is Map) {
+          if (b['message'] is String && b['message'].toString().isNotEmpty) {
+            errorMsg = b['message'] as String;
+          } else if (b['error'] is String && b['error'].toString().isNotEmpty) {
+            errorMsg = b['error'] as String;
+          } else if (b['errors'] is List && (b['errors'] as List).isNotEmpty) {
+            errorMsg = (b['errors'] as List).join(', ');
           }
         }
-      } catch (e) {
-        // ignore JSON parse errors
-      }
-      // Print backend error to terminal for debugging
+      } catch (_) {}
       throw Exception(errorMsg);
+    } catch (e) {
+      if (e is Exception && e.toString().startsWith('Exception: ')) rethrow;
+      throw Exception(networkErrorMessage(e));
     }
   }
 
   Future<Map<String, dynamic>> getMe(String token) async {
-    final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.me),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
+    try {
+      final response = await apiGet(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.me),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
       throw Exception('Failed to fetch user profile');
+    } catch (e) {
+      if (e is Exception && e.toString().startsWith('Exception: ')) rethrow;
+      throw Exception(networkErrorMessage(e));
     }
   }
 
   Future<void> registerFcmToken(String authToken, String fcmToken) async {
     try {
-      await http.post(
+      await apiPost(
         Uri.parse(ApiConstants.baseUrl + ApiConstants.registerFcmToken),
         headers: {
           'Content-Type': 'application/json',
@@ -113,15 +107,19 @@ class AuthRemoteDataSource {
   }
 
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
-    final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.refresh),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'refreshToken': refreshToken}),
-    );
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return jsonDecode(response.body);
-    } else {
+    try {
+      final response = await apiPost(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.refresh),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': refreshToken}),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      }
       throw Exception('Failed to refresh token');
+    } catch (e) {
+      if (e is Exception && e.toString().startsWith('Exception: ')) rethrow;
+      throw Exception(networkErrorMessage(e));
     }
   }
 }
