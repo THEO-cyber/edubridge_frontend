@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import '../../core/secure_storage.dart';
+import '../../core/auth_guard.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../core/error_handling.dart';
 
@@ -46,26 +47,24 @@ class HttpClientWithTokenRefresh {
   ) async {
     final response = await request();
 
-    // If we get a 403 (Forbidden), try to refresh the token and retry once
+    // 401 — token is outright invalid/expired; redirect to login immediately
+    if (response.statusCode == 401) {
+      await AuthGuard.handleUnauthorized();
+      throw UnauthorizedException('Session expired, please login again');
+    }
+
+    // 403 — try a token refresh once, then give up
     if (response.statusCode == 403) {
       try {
         await authRepository.refreshToken();
-        // Retry the request with the new token
         final newToken = await SecureStorage.getToken();
         if (newToken != null) {
-          // We need to modify the request to use the new token
-          // This is tricky because we need to reconstruct the request
-          // For now, let's throw an exception that indicates token refresh succeeded
-          // but we need the caller to retry with the new token
-          throw TokenRefreshedException(
-            'Token refreshed, please retry the request',
-          );
+          throw TokenRefreshedException('Token refreshed, please retry the request');
         }
       } catch (e) {
-        if (e is TokenRefreshedException) {
-          rethrow;
-        }
-        // If refresh failed, throw UnauthorizedException
+        if (e is TokenRefreshedException) rethrow;
+        // Refresh failed — session is dead, redirect to login
+        await AuthGuard.handleUnauthorized();
         throw UnauthorizedException('Session expired, please login again');
       }
     }

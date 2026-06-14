@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/secure_storage.dart';
+import '../../core/auth_guard.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -29,17 +30,27 @@ class _SplashScreenState extends State<SplashScreen>
 
     Future.delayed(const Duration(milliseconds: 2400), () async {
       if (!mounted) return;
-      final token = await SecureStorage.getToken();
-      final role = await SecureStorage.getRole();
+      final valid = await AuthGuard.isTokenValid();
       if (!mounted) return;
-      if (token != null && token.isNotEmpty) {
-        final isInstructor = role == 'instructor';
-        Navigator.of(context).pushReplacementNamed(
-          isInstructor ? '/lecturer-dashboard' : '/student-dashboard',
-        );
-      } else {
-        Navigator.of(context).pushReplacementNamed('/student-dashboard');
+      if (!valid) {
+        // Token missing or expired — clear stale credentials and go to login
+        await SecureStorage.deleteAllTokens();
+        await SecureStorage.clearRole();
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/user-login');
+        return;
       }
+      final role = (await SecureStorage.getRole() ?? '').toUpperCase();
+      final String destination;
+      if (role == 'INSTRUCTOR' || role == 'LECTURER') {
+        destination = '/lecturer-dashboard';
+      } else if (role == 'SUPER_ADMIN' || role == 'SUPERADMIN' || role == 'ADMIN') {
+        destination = '/admin-dashboard';
+      } else {
+        destination = '/student-dashboard';
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed(destination);
     });
   }
 
