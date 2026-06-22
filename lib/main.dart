@@ -18,6 +18,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
+import 'core/mini_player_manager.dart';
+import 'presentation/widgets/floating_mini_player.dart';
 import 'presentation/screens/lecturer_dashboard_screen.dart';
 import 'package:edubridge/presentation/blocs/profile_bloc_provider.dart';
 import 'package:edubridge/presentation/screens/profile_screen.dart';
@@ -43,7 +45,9 @@ import 'presentation/screens/two_factor_setup_screen.dart';
 import 'presentation/screens/email_preferences_screen.dart';
 import 'presentation/screens/settings_screen.dart';
 import 'presentation/screens/admin_dashboard_screen.dart';
+import 'presentation/screens/instructor_application_screen.dart';
 import 'presentation/screens/post_session_review_screen.dart';
+import 'presentation/screens/reports_screen.dart';
 
 // Must be a top-level function — handles FCM messages when app is terminated
 @pragma('vm:entry-point')
@@ -93,6 +97,18 @@ class EduBridgeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       navigatorKey: AppRouter.navigatorKey,
+      builder: (context, child) => Stack(
+        fit: StackFit.expand,
+        children: [
+          child!,
+          ListenableBuilder(
+            listenable: MiniPlayerManager.instance,
+            builder: (_, __) => MiniPlayerManager.instance.isActive
+                ? const FloatingMiniPlayerOverlay()
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
       home: const SplashScreen(),
       routes: {
         // Auth
@@ -142,6 +158,9 @@ class EduBridgeApp extends StatelessWidget {
         '/my-notes': (context) => const NotesScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/admin-dashboard': (context) => const AdminDashboardScreen(),
+        '/reports': (context) => const ReportsScreen(),
+        '/instructor-application': (context) =>
+            const InstructorApplicationScreen(),
       },
       onGenerateRoute: (settings) {
         // Handle /courses/:id/review — post-session review prompt from notification tap
