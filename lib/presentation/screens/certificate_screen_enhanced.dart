@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
@@ -389,23 +388,35 @@ class _CertificateCardState extends State<_CertificateCard> {
     try {
       final bytes = await CertificatePdfBuilder.build(cert);
       final file = await _savePdf(bytes, permanent: true);
+      final result = await OpenFilex.open(file.path);
       if (mounted) {
+        final opened = result.type == ResultType.done;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Row(children: [
-            Icon(Icons.check_circle_rounded,
-                color: Colors.white, size: 18),
-            SizedBox(width: 10),
-            Text('Certificate saved!',
-                style: TextStyle(fontWeight: FontWeight.w600)),
+          content: Row(children: [
+            Icon(
+              opened ? Icons.check_circle_rounded : Icons.folder_open_rounded,
+              color: Colors.white, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                opened
+                    ? 'Certificate opened!'
+                    : 'Saved to: Files > Android > data > ${file.path.split('/Android/').last}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
           ]),
           backgroundColor: const Color(0xFF2E7D32),
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 5),
+          action: opened ? null : SnackBarAction(
+            label: 'Open',
+            textColor: Colors.white,
+            onPressed: () => OpenFilex.open(file.path),
+          ),
         ));
       }
-      await OpenFilex.open(file.path);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -446,20 +457,8 @@ class _CertificateCardState extends State<_CertificateCard> {
   }
 
   Future<File> _savePdf(Uint8List bytes, {required bool permanent}) async {
-    if (permanent && Platform.isAndroid) {
-      final status = await Permission.storage.status;
-      if (!status.isGranted) await Permission.storage.request();
-    }
-
-    final Directory dir = permanent
-        ? (await getApplicationDocumentsDirectory())
-        : (await getTemporaryDirectory());
-
-    final name =
-        'EduBridge_Certificate_${cert.certificateNumber.replaceAll(RegExp(r'[^A-Za-z0-9]'), '_')}.pdf';
-    final file = File('${dir.path}/$name');
-    await file.writeAsBytes(bytes);
-    return file;
+    return _savePdfToDevice(bytes,
+        certNumber: cert.certificateNumber, permanent: permanent);
   }
 }
 
@@ -883,22 +882,29 @@ class _CertificatePreviewScreenState
     try {
       final bytes = await CertificatePdfBuilder.build(cert);
       final file = await _savePdf(bytes, permanent: true);
+      final result = await OpenFilex.open(file.path);
       if (mounted) {
+        final opened = result.type == ResultType.done;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Row(children: [
-            Icon(Icons.check_circle_rounded,
-                color: Colors.white, size: 18),
-            SizedBox(width: 10),
+          content: Row(children: [
+            Icon(
+              opened ? Icons.check_circle_rounded : Icons.folder_open_rounded,
+              color: Colors.white, size: 18),
+            const SizedBox(width: 10),
             Expanded(
-                child: Text('Certificate saved to your files!',
-                    style: TextStyle(fontWeight: FontWeight.w600))),
+              child: Text(
+                opened
+                    ? 'Certificate opened!'
+                    : 'Saved! Go to Files > Android > data to find it.',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
           ]),
           backgroundColor: const Color(0xFF2E7D32),
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 5),
+          action: opened ? null : SnackBarAction(
             label: 'Open',
             textColor: Colors.white,
             onPressed: () => OpenFilex.open(file.path),
@@ -908,8 +914,10 @@ class _CertificatePreviewScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download failed: $e'),
+          content: Text('Download failed: ${e.toString()}'),
           backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
         ));
       }
     } finally {
@@ -942,19 +950,50 @@ class _CertificatePreviewScreenState
   }
 
   Future<File> _savePdf(Uint8List bytes, {required bool permanent}) async {
-    if (permanent && Platform.isAndroid) {
-      final status = await Permission.storage.status;
-      if (!status.isGranted) await Permission.storage.request();
-    }
-    final dir = permanent
-        ? await getApplicationDocumentsDirectory()
-        : await getTemporaryDirectory();
-    final name =
-        'EduBridge_${cert.certificateNumber.replaceAll(RegExp(r'[^A-Za-z0-9]'), '_')}.pdf';
-    final file = File('${dir.path}/$name');
-    await file.writeAsBytes(bytes);
+    return _savePdfToDevice(bytes,
+        certNumber: cert.certificateNumber, permanent: permanent);
+  }
+}
+
+// ── Shared save helper ────────────────────────────────────────────────────────
+
+Future<File> _savePdfToDevice(
+  Uint8List bytes, {
+  required String certNumber,
+  required bool permanent,
+}) async {
+  final safeNum = certNumber.replaceAll(RegExp(r'[^A-Za-z0-9]'), '_');
+  final fileName = 'EduBridge_Certificate_$safeNum.pdf';
+
+  if (!permanent) {
+    // For sharing: temp dir is fine
+    final tmp = await getTemporaryDirectory();
+    final file = File('${tmp.path}/$fileName');
+    await file.writeAsBytes(bytes, flush: true);
     return file;
   }
+
+  // For permanent download on Android: use app-specific external storage
+  // (/storage/emulated/0/Android/data/<pkg>/files/Certificates/)
+  // Visible in Files app and accessible via FileProvider without permissions.
+  if (Platform.isAndroid) {
+    final extDir = await getExternalStorageDirectory();
+    if (extDir != null) {
+      final certDir = Directory('${extDir.path}/Certificates');
+      if (!certDir.existsSync()) certDir.createSync(recursive: true);
+      final file = File('${certDir.path}/$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+      return file;
+    }
+  }
+
+  // iOS / fallback: documents directory
+  final docsDir = await getApplicationDocumentsDirectory();
+  final certDir = Directory('${docsDir.path}/Certificates');
+  if (!certDir.existsSync()) certDir.createSync(recursive: true);
+  final file = File('${certDir.path}/$fileName');
+  await file.writeAsBytes(bytes, flush: true);
+  return file;
 }
 
 // ── PDF builder ───────────────────────────────────────────────────────────────
