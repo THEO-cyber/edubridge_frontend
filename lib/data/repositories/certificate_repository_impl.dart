@@ -16,11 +16,10 @@ class CertificateRepositoryImpl implements CertificateRepository {
             id: e['id'] ?? '',
             enrollmentId: e['enrollmentId'] ?? '',
             studentId: e['studentId'] ?? '',
+            studentName: _extractStudentName(e),
             courseId: e['courseId'] ?? '',
-            courseName: e['courseName'] ?? '',
-            issuedAt: DateTime.parse(
-              e['issuedAt'] ?? DateTime.now().toString(),
-            ),
+            courseName: _extractCourseName(e),
+            issuedAt: DateTime.tryParse(e['issuedAt']?.toString() ?? '') ?? DateTime.now(),
             certificateUrl: e['certificateUrl'] ?? '',
             certificateNumber: e['certificateNumber'] ?? '',
           ),
@@ -37,12 +36,33 @@ class CertificateRepositoryImpl implements CertificateRepository {
       id: e['id'] ?? '',
       enrollmentId: e['enrollmentId'] ?? '',
       studentId: e['studentId'] ?? '',
+      studentName: _extractStudentName(e),
       courseId: e['courseId'] ?? '',
-      courseName: e['courseName'] ?? '',
-      issuedAt: DateTime.parse(e['issuedAt'] ?? DateTime.now().toString()),
+      courseName: _extractCourseName(e),
+      issuedAt: DateTime.tryParse(e['issuedAt']?.toString() ?? '') ?? DateTime.now(),
       certificateUrl: e['certificateUrl'] ?? '',
       certificateNumber: e['certificateNumber'] ?? '',
     );
+  }
+
+  static String _extractStudentName(Map<String, dynamic> e) {
+    if ((e['studentName'] ?? '').toString().isNotEmpty) return e['studentName'].toString();
+    final student = e['student'];
+    if (student is Map) {
+      final name = '${student['firstName'] ?? ''} ${student['lastName'] ?? ''}'.trim();
+      if (name.isNotEmpty) return name;
+      if ((student['name'] ?? '').toString().isNotEmpty) return student['name'].toString();
+    }
+    return '';
+  }
+
+  static String _extractCourseName(Map<String, dynamic> e) {
+    if ((e['courseName'] ?? '').toString().isNotEmpty) return e['courseName'].toString();
+    final course = e['course'];
+    if (course is Map && (course['title'] ?? '').toString().isNotEmpty) {
+      return course['title'].toString();
+    }
+    return '';
   }
 
   Future<Uint8List> downloadCertificate(String certificateId, String token) async {

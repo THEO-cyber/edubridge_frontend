@@ -2,6 +2,7 @@ class CertificateEntity {
   final String id;
   final String enrollmentId;
   final String studentId;
+  final String studentName;
   final String courseId;
   final String courseName;
   final DateTime issuedAt;
@@ -12,6 +13,7 @@ class CertificateEntity {
     required this.id,
     required this.enrollmentId,
     required this.studentId,
+    this.studentName = '',
     required this.courseId,
     required this.courseName,
     required this.issuedAt,
