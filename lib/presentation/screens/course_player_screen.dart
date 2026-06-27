@@ -4,14 +4,11 @@ import 'dart:io';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 import '../../constants/api_constants.dart';
 import '../../core/mini_player_manager.dart';
 import '../blocs/certificate_bloc_provider.dart';
-import '../blocs/progress_bloc.dart';
-import '../blocs/progress_bloc_provider.dart';
 import 'certificate_screen_enhanced.dart';
 
 const _kNavy = Color(0xFF1A237E);
@@ -48,18 +45,16 @@ class CoursePlayerScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => ProgressBlocProvider(
-        child: _CoursePlayerBody(
-          courseId: courseId,
-          courseTitle: courseTitle,
-          courseImageUrl: courseImageUrl,
-          lessons: lessons,
-          startLessonIndex: startLessonIndex,
-          enrollmentId: enrollmentId,
-          token: token,
-          completedLessonIds: completedLessonIds,
-          existingController: existingController,
-        ),
+  Widget build(BuildContext context) => _CoursePlayerBody(
+        courseId: courseId,
+        courseTitle: courseTitle,
+        courseImageUrl: courseImageUrl,
+        lessons: lessons,
+        startLessonIndex: startLessonIndex,
+        enrollmentId: enrollmentId,
+        token: token,
+        completedLessonIds: completedLessonIds,
+        existingController: existingController,
       );
 }
 
@@ -291,48 +286,46 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
     _vpc = null;
   }
 
+  Future<void> _postProgress(String lessonId,
+      {required int watchTime, required bool isCompleted}) async {
+    try {
+      await http.post(
+        Uri.parse(
+            '${ApiConstants.baseUrl}${ApiConstants.lessonProgress(lessonId)}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+        body: jsonEncode({
+          'watchTime': watchTime,
+          'isCompleted': isCompleted,
+        }),
+      ).timeout(const Duration(seconds: 12));
+    } catch (_) {}
+  }
+
   void _autoSave() {
     if (_vpc == null) return;
     final pos = _vpc!.value.position.inSeconds;
     final dur = _vpc!.value.duration.inSeconds;
     if (dur <= 0) return;
-    context.read<ProgressBloc>().add(SaveLessonProgressEvent(
-          lessonId: _lesson['id'].toString(),
-          watchedSeconds: pos,
-          totalSeconds: dur,
-          completed: _isCurrentDone,
-          token: widget.token,
-        ));
+    _postProgress(_lesson['id'].toString(),
+        watchTime: pos, isCompleted: _isCurrentDone);
   }
 
   void _flushProgress({bool fromDispose = false}) {
     if (_vpc == null) return;
     final pos = _vpc!.value.position.inSeconds;
-    final dur = _vpc!.value.duration.inSeconds;
     if (pos <= 0) return;
-    try {
-      context.read<ProgressBloc>().add(SaveLessonProgressEvent(
-            lessonId: _lesson['id'].toString(),
-            watchedSeconds: pos,
-            totalSeconds: dur > 0 ? dur : 1,
-            completed: _isCurrentDone,
-            token: widget.token,
-          ));
-    } catch (_) {}
+    final lid = _lesson['id']?.toString() ?? '';
+    if (lid.isEmpty) return;
+    _postProgress(lid, watchTime: pos, isCompleted: _isCurrentDone);
   }
 
-  void _markComplete() {
+  Future<void> _markComplete() async {
     final lid = _lesson['id']?.toString() ?? '';
     if (lid.isEmpty || _completed.contains(lid)) return;
     setState(() => _completed.add(lid));
-    final dur = _vpc?.value.duration.inSeconds ?? 1;
-    context.read<ProgressBloc>().add(SaveLessonProgressEvent(
-          lessonId: lid,
-          watchedSeconds: dur,
-          totalSeconds: dur,
-          completed: true,
-          token: widget.token,
-        ));
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -349,7 +342,42 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
       ));
     }
 
-    // Check if all lessons done
+    // Post to backend and read courseProgress response
+    final dur = _vpc?.value.duration.inSeconds ?? 1;
+    try {
+      final res = await http.post(
+        Uri.parse(
+            '${ApiConstants.baseUrl}${ApiConstants.lessonProgress(lid)}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+        body: jsonEncode({'watchTime': dur, 'isCompleted': true}),
+      ).timeout(const Duration(seconds: 15));
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final cp = (body['courseProgress'] ?? body) as Map<String, dynamic>;
+        final status = cp['status']?.toString() ?? '';
+        final certId = cp['certificate']?['id']?.toString() ?? '';
+        final pct = _toDouble(
+            cp['progressPercentage'] ?? cp['progress'] ?? 0);
+
+        // Update local completion set from server response if available
+        if (!mounted) return;
+        if (status == 'COMPLETED' || pct >= 100) {
+          if (!_courseCompleteShown) {
+            _courseCompleteShown = true;
+            Future.delayed(const Duration(milliseconds: 800), () {
+              if (mounted) _showCourseCompleteDialog(certId: certId);
+            });
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Fallback local count check
     _checkCourseCompletion();
 
     if (_hasNext) {
@@ -357,6 +385,13 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
         if (mounted) _jumpTo(_currentIndex + 1);
       });
     }
+  }
+
+  double _toDouble(dynamic v) {
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
+    return 0.0;
   }
 
   void _checkCourseCompletion() {
@@ -368,8 +403,8 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
     });
   }
 
-  void _showCourseCompleteDialog() {
-    _generateCertificate();
+  void _showCourseCompleteDialog({String certId = ''}) {
+    if (certId.isEmpty) _generateCertificate();
     showDialog(
       context: context,
       barrierDismissible: false,
