@@ -2,14 +2,18 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import '../../constants/api_constants.dart';
+import '../../core/secure_storage.dart';
 import '../../domain/entities/certificate_entity.dart';
 import '../blocs/certificate_bloc.dart';
+import '../blocs/certificate_bloc_provider.dart';
 
 // ── Brand colours ──────────────────────────────────────────────────────────────
 const _navy   = Color(0xFF0D1B4B);
@@ -17,9 +21,19 @@ const _gold   = Color(0xFFC9A84C);
 const _goldLt = Color(0xFFF0D080);
 const _cream  = Color(0xFFFAF8F0);
 
+/// Can be used two ways:
+///  1. Wrap in CertificateBlocProvider and pass token directly.
+///  2. Use CertificateScreenEnhanced.route() which wraps itself.
 class CertificateScreenEnhanced extends StatefulWidget {
-  final String token;
-  const CertificateScreenEnhanced({super.key, required this.token});
+  final String? token;
+  const CertificateScreenEnhanced({super.key, this.token});
+
+  /// Self-contained route — fetches its own token and provides its own bloc.
+  static Route<void> route() => MaterialPageRoute(
+        builder: (_) => CertificateBlocProvider(
+          child: const CertificateScreenEnhanced(),
+        ),
+      );
 
   @override
   State<CertificateScreenEnhanced> createState() =>
@@ -31,7 +45,16 @@ class _CertificateScreenEnhancedState
   @override
   void initState() {
     super.initState();
-    context.read<CertificateBloc>().add(LoadCertificatesEvent(widget.token));
+    _load();
+  }
+
+  Future<void> _load() async {
+    final t = widget.token?.isNotEmpty == true
+        ? widget.token!
+        : (await SecureStorage.getToken() ?? '');
+    if (mounted) {
+      context.read<CertificateBloc>().add(LoadCertificatesEvent(t));
+    }
   }
 
   @override
@@ -386,8 +409,9 @@ class _CertificateCardState extends State<_CertificateCard> {
     if (_downloading) return;
     setState(() => _downloading = true);
     try {
-      final bytes = await CertificatePdfBuilder.build(cert);
-      final file = await _savePdf(bytes, permanent: true);
+      final bytes = await _getPdfBytes(cert);
+      final file = await _savePdfToDevice(bytes,
+          certNumber: cert.certificateNumber, permanent: true);
       final result = await OpenFilex.open(file.path);
       if (mounted) {
         final opened = result.type == ResultType.done;
@@ -399,9 +423,7 @@ class _CertificateCardState extends State<_CertificateCard> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                opened
-                    ? 'Certificate opened!'
-                    : 'Saved to: Files > Android > data > ${file.path.split('/Android/').last}',
+                opened ? 'Certificate opened!' : 'Saved! Tap Open to view.',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
@@ -420,9 +442,10 @@ class _CertificateCardState extends State<_CertificateCard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download failed: $e'),
+          content: Text('Download failed: ${e.toString()}'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
         ));
       }
     } finally {
@@ -434,19 +457,18 @@ class _CertificateCardState extends State<_CertificateCard> {
     if (_sharing) return;
     setState(() => _sharing = true);
     try {
-      final bytes = await CertificatePdfBuilder.build(cert);
-      final file = await _savePdf(bytes, permanent: false);
+      final bytes = await _getPdfBytes(cert);
+      final file = await _savePdfToDevice(bytes,
+          certNumber: cert.certificateNumber, permanent: false);
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/pdf')],
-        subject:
-            'My Certificate — ${cert.courseName}',
-        text:
-            'I completed "${cert.courseName}" on EduBridge! 🎓\nCertificate #${cert.certificateNumber}',
+        subject: 'My EduBridge Certificate — ${cert.courseName}',
+        text: 'I completed "${cert.courseName}" on EduBridge! 🎓\nCertificate #${cert.certificateNumber}',
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Share failed: $e'),
+          content: Text('Share failed: ${e.toString()}'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ));
@@ -454,11 +476,6 @@ class _CertificateCardState extends State<_CertificateCard> {
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
-  }
-
-  Future<File> _savePdf(Uint8List bytes, {required bool permanent}) async {
-    return _savePdfToDevice(bytes,
-        certNumber: cert.certificateNumber, permanent: permanent);
   }
 }
 
@@ -880,8 +897,9 @@ class _CertificatePreviewScreenState
     if (_downloading) return;
     setState(() => _downloading = true);
     try {
-      final bytes = await CertificatePdfBuilder.build(cert);
-      final file = await _savePdf(bytes, permanent: true);
+      final bytes = await _getPdfBytes(cert);
+      final file = await _savePdfToDevice(bytes,
+          certNumber: cert.certificateNumber, permanent: true);
       final result = await OpenFilex.open(file.path);
       if (mounted) {
         final opened = result.type == ResultType.done;
@@ -893,9 +911,7 @@ class _CertificatePreviewScreenState
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                opened
-                    ? 'Certificate opened!'
-                    : 'Saved! Go to Files > Android > data to find it.',
+                opened ? 'Certificate opened!' : 'Saved! Tap Open to view.',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
@@ -929,18 +945,18 @@ class _CertificatePreviewScreenState
     if (_sharing) return;
     setState(() => _sharing = true);
     try {
-      final bytes = await CertificatePdfBuilder.build(cert);
-      final file = await _savePdf(bytes, permanent: false);
+      final bytes = await _getPdfBytes(cert);
+      final file = await _savePdfToDevice(bytes,
+          certNumber: cert.certificateNumber, permanent: false);
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/pdf')],
         subject: 'My EduBridge Certificate — ${cert.courseName}',
-        text:
-            'I just completed "${cert.courseName}" on EduBridge! 🎓\nCertificate No: #${cert.certificateNumber}',
+        text: 'I just completed "${cert.courseName}" on EduBridge! 🎓\nCertificate No: #${cert.certificateNumber}',
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Share failed: $e'),
+          content: Text('Share failed: ${e.toString()}'),
           backgroundColor: Colors.redAccent,
         ));
       }
@@ -948,14 +964,33 @@ class _CertificatePreviewScreenState
       if (mounted) setState(() => _sharing = false);
     }
   }
-
-  Future<File> _savePdf(Uint8List bytes, {required bool permanent}) async {
-    return _savePdfToDevice(bytes,
-        certNumber: cert.certificateNumber, permanent: permanent);
-  }
 }
 
-// ── Shared save helper ────────────────────────────────────────────────────────
+// ── Shared PDF helpers ────────────────────────────────────────────────────────
+
+/// Tries GET /certificates/:id/download from the backend first.
+/// Falls back to local PDF generation if the endpoint fails or returns non-PDF.
+Future<Uint8List> _getPdfBytes(CertificateEntity cert) async {
+  if (cert.id.isNotEmpty) {
+    try {
+      final token = await SecureStorage.getToken() ?? '';
+      final url =
+          '${ApiConstants.baseUrl}${ApiConstants.certificates}/${cert.id}/download';
+      final res = await http.get(
+        Uri.parse(url),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 20));
+
+      if (res.statusCode == 200 &&
+          res.headers['content-type']?.contains('pdf') == true &&
+          res.bodyBytes.length > 512) {
+        return res.bodyBytes;
+      }
+    } catch (_) {}
+  }
+  // Fall back to locally generated PDF
+  return CertificatePdfBuilder.build(cert);
+}
 
 Future<File> _savePdfToDevice(
   Uint8List bytes, {
@@ -1003,8 +1038,9 @@ class CertificatePdfBuilder {
     final doc = pw.Document();
 
     final name = cert.studentName.isNotEmpty ? cert.studentName : 'Graduate';
-    final course =
-        cert.courseName.isNotEmpty ? cert.courseName : 'EduBridge Course';
+    final course = cert.courseName.isNotEmpty ? cert.courseName : 'EduBridge Course';
+    final instructor = cert.instructorName.isNotEmpty ? cert.instructorName : '';
+    final issuedBy = cert.issuedBy.isNotEmpty ? cert.issuedBy : 'EduBridge Academy';
     final dateStr = DateFormat('d MMMM yyyy').format(cert.issuedAt);
     final certNo = cert.certificateNumber;
 
@@ -1180,92 +1216,115 @@ class CertificatePdfBuilder {
 
                     pw.Spacer(),
 
-                    // Bottom row
-                    pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    // Bottom: cert info + two signature lines
+                    pw.Column(
                       children: [
-                        // Date column
-                        pw.Expanded(
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.center,
-                            children: [
-                              pw.Container(
-                                  width: 100,
-                                  height: 0.75,
-                                  color: navyPdf),
-                              pw.SizedBox(height: 4),
-                              pw.Text(dateStr,
-                                  style: pw.TextStyle(
-                                      font: pw.Font.timesBold(),
-                                      color: navyPdf,
-                                      fontSize: 9)),
-                              pw.Text('DATE OF ISSUE',
-                                  style: pw.TextStyle(
-                                      font: pw.Font.times(),
-                                      color: greyPdf,
-                                      fontSize: 7,
-                                      letterSpacing: 1.5)),
-                            ],
-                          ),
+                        // Cert number + date info bar
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.center,
+                          children: [
+                            pw.Text('Certificate No: #$certNo',
+                                style: pw.TextStyle(
+                                    font: pw.Font.times(),
+                                    color: greyPdf,
+                                    fontSize: 8,
+                                    letterSpacing: 1)),
+                            pw.SizedBox(width: 24),
+                            pw.Text('Issued: $dateStr',
+                                style: pw.TextStyle(
+                                    font: pw.Font.times(),
+                                    color: greyPdf,
+                                    fontSize: 8,
+                                    letterSpacing: 1)),
+                          ],
                         ),
-
-                        // Seal
-                        pw.Container(
-                          width: 70,
-                          height: 70,
-                          decoration: pw.BoxDecoration(
-                            shape: pw.BoxShape.circle,
-                            gradient: const pw.RadialGradient(
-                              colors: [goldLtPdf, goldPdf,
-                                PdfColor.fromInt(0xFF8B6914)],
-                              stops: [0.0, 0.6, 1.0],
+                        pw.SizedBox(height: 12),
+                        // Signature row
+                        pw.Row(
+                          children: [
+                            // Left signature — issuing org
+                            pw.Expanded(
+                              child: pw.Column(
+                                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                                children: [
+                                  pw.Container(
+                                      width: 120, height: 0.75, color: navyPdf),
+                                  pw.SizedBox(height: 4),
+                                  pw.Text(issuedBy,
+                                      style: pw.TextStyle(
+                                          font: pw.Font.timesBold(),
+                                          color: navyPdf,
+                                          fontSize: 9)),
+                                  pw.Text('AUTHORIZED SIGNATORY',
+                                      style: pw.TextStyle(
+                                          font: pw.Font.times(),
+                                          color: greyPdf,
+                                          fontSize: 6.5,
+                                          letterSpacing: 1.2)),
+                                ],
+                              ),
                             ),
-                          ),
-                          child: pw.Column(
-                            mainAxisAlignment: pw.MainAxisAlignment.center,
-                            children: [
-                              pw.Text('★',
-                                  style: pw.TextStyle(
-                                      color: navyPdf, fontSize: 22)),
-                              pw.Text('EDUBRIDGE',
-                                  style: pw.TextStyle(
-                                      font: pw.Font.timesBold(),
-                                      color: navyPdf,
-                                      fontSize: 5.5,
-                                      letterSpacing: 1)),
-                              pw.Text('CERTIFIED',
-                                  style: pw.TextStyle(
-                                      font: pw.Font.times(),
-                                      color: navyPdf,
-                                      fontSize: 4.5,
-                                      letterSpacing: 0.8)),
-                            ],
-                          ),
-                        ),
 
-                        // Cert number column
-                        pw.Expanded(
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.center,
-                            children: [
-                              pw.Container(
-                                  width: 100,
-                                  height: 0.75,
-                                  color: navyPdf),
-                              pw.SizedBox(height: 4),
-                              pw.Text('#$certNo',
-                                  style: pw.TextStyle(
-                                      font: pw.Font.timesBold(),
-                                      color: navyPdf,
-                                      fontSize: 9)),
-                              pw.Text('CERTIFICATE NO.',
-                                  style: pw.TextStyle(
-                                      font: pw.Font.times(),
-                                      color: greyPdf,
-                                      fontSize: 7,
-                                      letterSpacing: 1.5)),
-                            ],
-                          ),
+                            // Center seal
+                            pw.Container(
+                              width: 60,
+                              height: 60,
+                              decoration: pw.BoxDecoration(
+                                shape: pw.BoxShape.circle,
+                                gradient: const pw.RadialGradient(
+                                  colors: [goldLtPdf, goldPdf,
+                                    PdfColor.fromInt(0xFF8B6914)],
+                                  stops: [0.0, 0.6, 1.0],
+                                ),
+                              ),
+                              child: pw.Column(
+                                mainAxisAlignment: pw.MainAxisAlignment.center,
+                                children: [
+                                  pw.Text('★',
+                                      style: pw.TextStyle(
+                                          color: navyPdf, fontSize: 18)),
+                                  pw.Text('EDUBRIDGE',
+                                      style: pw.TextStyle(
+                                          font: pw.Font.timesBold(),
+                                          color: navyPdf,
+                                          fontSize: 5,
+                                          letterSpacing: 0.8)),
+                                  pw.Text('CERTIFIED',
+                                      style: pw.TextStyle(
+                                          font: pw.Font.times(),
+                                          color: navyPdf,
+                                          fontSize: 4,
+                                          letterSpacing: 0.6)),
+                                ],
+                              ),
+                            ),
+
+                            // Right signature — instructor
+                            pw.Expanded(
+                              child: pw.Column(
+                                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                                children: [
+                                  pw.Container(
+                                      width: 120, height: 0.75, color: navyPdf),
+                                  pw.SizedBox(height: 4),
+                                  pw.Text(
+                                    instructor.isNotEmpty
+                                        ? instructor
+                                        : 'Course Instructor',
+                                    style: pw.TextStyle(
+                                        font: pw.Font.timesBold(),
+                                        color: navyPdf,
+                                        fontSize: 9)),
+                                  pw.Text('COURSE INSTRUCTOR',
+                                      style: pw.TextStyle(
+                                          font: pw.Font.times(),
+                                          color: greyPdf,
+                                          fontSize: 6.5,
+                                          letterSpacing: 1.2)),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

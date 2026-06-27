@@ -5,6 +5,8 @@ class CertificateEntity {
   final String studentName;
   final String courseId;
   final String courseName;
+  final String instructorName;
+  final String issuedBy;
   final DateTime issuedAt;
   final String certificateUrl;
   final String certificateNumber;
@@ -16,6 +18,8 @@ class CertificateEntity {
     this.studentName = '',
     required this.courseId,
     required this.courseName,
+    this.instructorName = '',
+    this.issuedBy = 'EduBridge Academy',
     required this.issuedAt,
     required this.certificateUrl,
     required this.certificateNumber,

@@ -8,7 +8,8 @@ import 'package:edubridge/presentation/screens/user_login_screen.dart';
 import 'package:edubridge/presentation/screens/user_register_screen.dart';
 import 'package:edubridge/presentation/screens/my_courses_screen.dart';
 import 'package:edubridge/presentation/screens/student_live_sessions_screen.dart';
-import 'package:edubridge/presentation/screens/certificates_screen.dart';
+import 'package:edubridge/presentation/screens/certificate_screen_enhanced.dart';
+import 'package:edubridge/presentation/blocs/certificate_bloc_provider.dart';
 import 'package:edubridge/presentation/screens/support_chat_screen.dart';
 import 'package:edubridge/presentation/screens/lecturer_session_management_screen.dart';
 import 'package:edubridge/presentation/screens/lecture_analytics_dashboard_screen.dart';
@@ -125,7 +126,8 @@ class EduBridgeApp extends StatelessWidget {
             WishlistBlocProvider(child: const DashboardScreen()),
         '/my-courses': (context) =>
             EnrollmentBlocProvider(child: const MyCoursesScreen()),
-        '/certificates': (context) => const CertificatesScreen(),
+        '/certificates': (context) => CertificateBlocProvider(
+              child: const CertificateScreenEnhanced()),
         '/wishlist': (context) =>
             WishlistBlocProvider(child: const WishlistScreen()),
         '/top-courses': (context) => const TopCoursesPage(),
