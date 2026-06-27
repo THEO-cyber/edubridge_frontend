@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/cache/app_cache.dart';
 import '../../domain/entities/course_entity.dart';
 import '../../domain/usecases/fetch_courses_usecase.dart';
 import '../../data/repositories/course_repository_impl.dart';
@@ -54,54 +55,88 @@ class CourseBloc extends Bloc<CourseEvent, CourseState> {
     required this.courseRepository,
   }) : super(CourseInitial()) {
     on<LoadCoursesEvent>((event, emit) async {
-      emit(CourseLoading());
+      const key = 'courses_all';
+      final cached = AppCache.get<List<CourseEntity>>(key);
+      if (cached != null) {
+        emit(CourseLoaded(cached));
+      } else {
+        emit(CourseLoading());
+      }
       try {
         final courses = await fetchCoursesUseCase();
+        AppCache.set(key, courses, ttl: const Duration(minutes: 3));
         emit(CourseLoaded(courses));
       } catch (e) {
-        emit(CourseError(e.toString()));
+        if (cached == null) emit(CourseError(e.toString()));
       }
     });
 
     on<SearchCoursesEvent>((event, emit) async {
-      emit(CourseLoading());
+      final key = 'courses_search_${event.query}';
+      final cached = AppCache.get<List<CourseEntity>>(key);
+      if (cached != null) {
+        emit(CourseLoaded(cached));
+      } else {
+        emit(CourseLoading());
+      }
       try {
         final courses = await courseRepository.searchCourses(event.query);
+        AppCache.set(key, courses, ttl: const Duration(minutes: 2));
         emit(CourseLoaded(courses));
       } catch (e) {
-        emit(CourseError(e.toString()));
+        if (cached == null) emit(CourseError(e.toString()));
       }
     });
 
     on<FetchCoursesByCategoryEvent>((event, emit) async {
-      emit(CourseLoading());
+      final key = 'courses_cat_${event.category}';
+      final cached = AppCache.get<List<CourseEntity>>(key);
+      if (cached != null) {
+        emit(CourseLoaded(cached));
+      } else {
+        emit(CourseLoading());
+      }
       try {
-        final courses = await courseRepository.fetchCoursesByCategory(
-          event.category,
-        );
+        final courses =
+            await courseRepository.fetchCoursesByCategory(event.category);
+        AppCache.set(key, courses, ttl: const Duration(minutes: 3));
         emit(CourseLoaded(courses));
       } catch (e) {
-        emit(CourseError(e.toString()));
+        if (cached == null) emit(CourseError(e.toString()));
       }
     });
 
     on<FetchTopRatedCoursesEvent>((event, emit) async {
-      emit(CourseLoading());
+      const key = 'courses_top_rated';
+      final cached = AppCache.get<List<CourseEntity>>(key);
+      if (cached != null) {
+        emit(CourseLoaded(cached));
+      } else {
+        emit(CourseLoading());
+      }
       try {
         final courses = await courseRepository.fetchTopRatedCourses();
+        AppCache.set(key, courses, ttl: const Duration(minutes: 5));
         emit(CourseLoaded(courses));
       } catch (e) {
-        emit(CourseError(e.toString()));
+        if (cached == null) emit(CourseError(e.toString()));
       }
     });
 
     on<FetchCourseDetailEvent>((event, emit) async {
-      emit(CourseLoading());
+      final key = 'course_detail_${event.courseId}';
+      final cached = AppCache.get<CourseEntity>(key);
+      if (cached != null) {
+        emit(CourseDetailLoaded(cached));
+      } else {
+        emit(CourseLoading());
+      }
       try {
         final course = await courseRepository.fetchCourseById(event.courseId);
+        AppCache.set(key, course, ttl: const Duration(minutes: 2));
         emit(CourseDetailLoaded(course));
       } catch (e) {
-        emit(CourseError(e.toString()));
+        if (cached == null) emit(CourseError(e.toString()));
       }
     });
   }

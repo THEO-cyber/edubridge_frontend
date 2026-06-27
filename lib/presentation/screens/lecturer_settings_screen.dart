@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'about_screen.dart';
-import 'payment_history_screen.dart';
+import 'email_preferences_screen.dart';
 import 'policy_screen.dart';
-import 'reports_screen.dart';
-import 'student_analytics_screen.dart';
 
 const _kNavy = Color(0xFF1A237E);
 const _kBlue = Color(0xFF1976D2);
 
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+class LecturerSettingsScreen extends StatelessWidget {
+  const LecturerSettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +18,7 @@ class SettingsScreen extends StatelessWidget {
         title: const Text('Settings'),
         backgroundColor: _kNavy,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -50,52 +50,33 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          _SectionLabel('CONTENT'),
+          _SectionLabel('NOTIFICATIONS'),
           const SizedBox(height: 8),
           _SettingsCard(
             items: [
               _SettingsTile(
-                icon: Icons.bar_chart_rounded,
-                label: 'My Progress',
+                icon: Icons.notifications_outlined,
+                label: 'Push Notifications',
                 iconColor: _kNavy,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const StudentAnalyticsScreen(),
-                  ),
-                ),
+                onTap: () async {
+                  final status = await Permission.notification.status;
+                  if (status.isPermanentlyDenied || status.isDenied) {
+                    await openAppSettings();
+                  } else {
+                    await Permission.notification.request();
+                  }
+                },
               ),
               _SettingsTile(
-                icon: Icons.receipt_long_rounded,
-                label: 'Payment History',
+                icon: Icons.campaign_outlined,
+                label: 'Marketing Emails',
                 iconColor: _kBlue,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const PaymentHistoryScreen(),
-                  ),
-                ),
-              ),
-              _SettingsTile(
-                icon: Icons.note_alt_outlined,
-                label: 'My Notes',
-                iconColor: _kNavy,
-                onTap: () => Navigator.pushNamed(context, '/my-notes'),
-              ),
-              _SettingsTile(
-                icon: Icons.emoji_events_outlined,
-                label: 'My Certificates',
-                iconColor: _kBlue,
-                onTap: () => Navigator.pushNamed(context, '/certificates'),
-              ),
-              _SettingsTile(
-                icon: Icons.flag_outlined,
-                label: 'My Reports',
-                iconColor: Colors.red,
                 isLast: true,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ReportsScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const EmailPreferencesScreen(),
+                  ),
                 ),
               ),
             ],
@@ -112,7 +93,7 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const AboutScreen(isInstructor: false),
+                    builder: (_) => const AboutScreen(isInstructor: true),
                   ),
                 ),
               ),
@@ -220,8 +201,7 @@ class _SettingsTile extends StatelessWidget {
                         fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
-                const Icon(Icons.chevron_right,
-                    color: Colors.grey, size: 20),
+                const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
               ],
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/cache/app_cache.dart';
 import '../../domain/entities/live_session_entity.dart';
 import '../../domain/usecases/live_sessions_usecases.dart';
 
@@ -222,12 +223,19 @@ class LiveSessionBloc extends Bloc<LiveSessionEvent, LiveSessionState> {
   }) : super(LiveSessionInitial()) {
     // Student events
     on<FetchAvailableLiveSessionsEvent>((event, emit) async {
-      emit(LiveSessionLoading());
+      const key = 'live_sessions_available';
+      final cached = AppCache.get<List<LiveSessionEntity>>(key);
+      if (cached != null) {
+        emit(LiveSessionLoaded(cached));
+      } else {
+        emit(LiveSessionLoading());
+      }
       try {
         final sessions = await fetchAvailableSessionsUseCase(event.token);
+        AppCache.set(key, sessions, ttl: const Duration(minutes: 2));
         emit(LiveSessionLoaded(sessions));
       } catch (e) {
-        emit(LiveSessionError(e.toString()));
+        if (cached == null) emit(LiveSessionError(e.toString()));
       }
     });
 
@@ -280,12 +288,19 @@ class LiveSessionBloc extends Bloc<LiveSessionEvent, LiveSessionState> {
 
     // Lecturer events
     on<FetchMyLiveSessionsEvent>((event, emit) async {
-      emit(LiveSessionLoading());
+      const key = 'my_live_sessions';
+      final cached = AppCache.get<List<LiveSessionEntity>>(key);
+      if (cached != null) {
+        emit(LiveSessionLoaded(cached));
+      } else {
+        emit(LiveSessionLoading());
+      }
       try {
         final sessions = await fetchMyLiveSessionsUseCase(event.token);
+        AppCache.set(key, sessions, ttl: const Duration(minutes: 2));
         emit(LiveSessionLoaded(sessions));
       } catch (e) {
-        emit(LiveSessionError(e.toString()));
+        if (cached == null) emit(LiveSessionError(e.toString()));
       }
     });
 

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/course_bloc.dart';
 import '../blocs/enrollment_bloc_provider.dart';
 import '../../domain/entities/course_entity.dart';
+import '../widgets/shimmer_widgets.dart';
 import 'course_detail_screen.dart';
 
 const _kPrimary = Color(0xFF1A237E);
@@ -71,19 +72,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
             builder: (context, state) {
               if (state is CourseLoading) {
                 return const SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: _kPrimary),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading courses...',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: CourseListSkeleton(),
                 );
               }
 

@@ -89,7 +89,9 @@ Future<void> showTwoFAVerificationDialog({
                   );
                 }
                 setStateDialog(() {
-                  for (final c in controllers) c.clear();
+                  for (final c in controllers) {
+                    c.clear();
+                  }
                   focusNodes[0].requestFocus();
                 });
               }
@@ -234,7 +236,11 @@ Future<void> showTwoFAVerificationDialog({
       ),
     );
   } finally {
-    for (final c in controllers) c.dispose();
-    for (final n in focusNodes) n.dispose();
+    for (final c in controllers) {
+      c.dispose();
+    }
+    for (final n in focusNodes) {
+      n.dispose();
+    }
   }
 }

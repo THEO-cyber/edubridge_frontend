@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">eduBridge</string>
+    <!-- Web OAuth client ID from Google Cloud Console — used by google_sign_in to request serverAuthCode/idToken -->
+    <string name="default_web_client_id">628312261906-e46lcmni7u0g5ed8l6befkao67oengkc.apps.googleusercontent.com</string>
+</resources>

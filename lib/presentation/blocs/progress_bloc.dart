@@ -1,34 +1,27 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../domain/entities/progress_entity.dart';
 import '../../domain/entities/enrollment_entity.dart';
 import '../../data/repositories/progress_repository_impl.dart';
 
+// ── Events ────────────────────────────────────────────────────────────────────
+
 abstract class ProgressEvent {}
 
-class FetchProgressEvent extends ProgressEvent {
-  final String enrollmentId;
-  final String token;
-  FetchProgressEvent(this.enrollmentId, this.token);
-}
-
-class UpdateLessonProgressEvent extends ProgressEvent {
-  final String enrollmentId;
+/// Save watch progress (and optionally mark complete) via
+/// POST /enrollments/lessons/:lessonId/progress
+class SaveLessonProgressEvent extends ProgressEvent {
   final String lessonId;
-  final int watchedDuration;
+  final int watchedSeconds;
+  final int totalSeconds;
+  final bool completed;
   final String token;
-  UpdateLessonProgressEvent(
-    this.enrollmentId,
-    this.lessonId,
-    this.watchedDuration,
-    this.token,
-  );
-}
 
-class MarkLessonCompleteEvent extends ProgressEvent {
-  final String enrollmentId;
-  final String lessonId;
-  final String token;
-  MarkLessonCompleteEvent(this.enrollmentId, this.lessonId, this.token);
+  SaveLessonProgressEvent({
+    required this.lessonId,
+    required this.watchedSeconds,
+    required this.totalSeconds,
+    required this.completed,
+    required this.token,
+  });
 }
 
 class FetchEnrolledCoursesEvent extends ProgressEvent {
@@ -36,78 +29,40 @@ class FetchEnrolledCoursesEvent extends ProgressEvent {
   FetchEnrolledCoursesEvent(this.token);
 }
 
+// ── States ────────────────────────────────────────────────────────────────────
+
 abstract class ProgressState {}
 
 class ProgressInitial extends ProgressState {}
-
 class ProgressLoading extends ProgressState {}
-
-class ProgressLoaded extends ProgressState {
-  final ProgressEntity progress;
-  ProgressLoaded(this.progress);
-}
+class ProgressSaved extends ProgressState {}
 
 class EnrolledCoursesLoaded extends ProgressState {
   final List<EnrollmentEntity> courses;
   EnrolledCoursesLoaded(this.courses);
 }
 
-class ProgressUpdated extends ProgressState {}
-
 class ProgressError extends ProgressState {
   final String message;
   ProgressError(this.message);
 }
 
+// ── Bloc ──────────────────────────────────────────────────────────────────────
+
 class ProgressBloc extends Bloc<ProgressEvent, ProgressState> {
   final ProgressRepositoryImpl progressRepository;
 
   ProgressBloc({required this.progressRepository}) : super(ProgressInitial()) {
-    on<FetchProgressEvent>((event, emit) async {
-      emit(ProgressLoading());
+    on<SaveLessonProgressEvent>((event, emit) async {
       try {
-        final progress = await progressRepository.fetchProgress(
-          event.enrollmentId,
-          event.token,
-        );
-        emit(ProgressLoaded(progress));
-      } catch (e) {
-        emit(ProgressError(e.toString()));
-      }
-    });
-
-    on<UpdateLessonProgressEvent>((event, emit) async {
-      try {
-        await progressRepository.updateLessonProgress(
-          event.enrollmentId,
+        await progressRepository.saveLessonProgress(
           event.lessonId,
-          event.watchedDuration,
+          event.watchedSeconds,
+          event.totalSeconds,
+          event.completed,
           event.token,
         );
-        emit(ProgressUpdated());
-        final progress = await progressRepository.fetchProgress(
-          event.enrollmentId,
-          event.token,
-        );
-        emit(ProgressLoaded(progress));
-      } catch (e) {
-        emit(ProgressError(e.toString()));
-      }
-    });
-
-    on<MarkLessonCompleteEvent>((event, emit) async {
-      try {
-        await progressRepository.markLessonComplete(
-          event.enrollmentId,
-          event.lessonId,
-          event.token,
-        );
-        emit(ProgressUpdated());
-        final progress = await progressRepository.fetchProgress(
-          event.enrollmentId,
-          event.token,
-        );
-        emit(ProgressLoaded(progress));
+        emit(ProgressSaved());
       } catch (e) {
         emit(ProgressError(e.toString()));
       }
@@ -116,9 +71,8 @@ class ProgressBloc extends Bloc<ProgressEvent, ProgressState> {
     on<FetchEnrolledCoursesEvent>((event, emit) async {
       emit(ProgressLoading());
       try {
-        final courses = await progressRepository.fetchEnrolledCourses(
-          event.token,
-        );
+        final courses =
+            await progressRepository.fetchEnrolledCourses(event.token);
         emit(EnrolledCoursesLoaded(courses));
       } catch (e) {
         emit(ProgressError(e.toString()));

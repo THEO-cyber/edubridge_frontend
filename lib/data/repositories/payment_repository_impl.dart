@@ -25,9 +25,9 @@ class PaymentRepositoryImpl implements PaymentRepository {
       String statusString = (e['status'] ?? 'pending').toString().toLowerCase();
       PaymentStatus status = PaymentStatus.pending;
 
-      if (statusString == 'completed')
+      if (statusString == 'completed') {
         status = PaymentStatus.completed;
-      else if (statusString == 'failed')
+      } else if (statusString == 'failed')
         status = PaymentStatus.failed;
       else if (statusString == 'cancelled')
         status = PaymentStatus.cancelled;
@@ -57,9 +57,9 @@ class PaymentRepositoryImpl implements PaymentRepository {
           .toLowerCase();
       PaymentStatus status = PaymentStatus.pending;
 
-      if (statusString == 'completed')
+      if (statusString == 'completed') {
         status = PaymentStatus.completed;
-      else if (statusString == 'failed')
+      } else if (statusString == 'failed')
         status = PaymentStatus.failed;
       else if (statusString == 'cancelled')
         status = PaymentStatus.cancelled;

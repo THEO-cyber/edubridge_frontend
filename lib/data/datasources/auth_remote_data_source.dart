@@ -106,6 +106,28 @@ class AuthRemoteDataSource {
     } catch (_) {}
   }
 
+  Future<Map<String, dynamic>> googleMobileLogin(String idToken) async {
+    try {
+      final response = await apiPost(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.googleMobileAuth),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'idToken': idToken}),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      }
+      String errorMsg = 'Google sign-in failed';
+      try {
+        final b = jsonDecode(response.body);
+        if (b is Map && b['message'] is String) errorMsg = b['message'] as String;
+      } catch (_) {}
+      throw Exception(errorMsg);
+    } catch (e) {
+      if (e is Exception && e.toString().startsWith('Exception: ')) rethrow;
+      throw Exception(networkErrorMessage(e));
+    }
+  }
+
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
     try {
       final response = await apiPost(

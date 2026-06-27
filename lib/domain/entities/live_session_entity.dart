@@ -12,6 +12,7 @@ class LiveSessionEntity {
   final int maxStudents;
   final int currentParticipants;
   final bool isRecorded;
+  final int durationMinutes;
 
   LiveSessionEntity({
     required this.id,
@@ -27,6 +28,7 @@ class LiveSessionEntity {
     this.maxStudents = 50,
     this.currentParticipants = 0,
     this.isRecorded = false,
+    this.durationMinutes = 0,
   });
 }
 

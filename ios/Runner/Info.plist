@@ -66,5 +66,21 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+
+	<!-- Google Sign-In: reversed iOS client ID from GoogleService-Info.plist -->
+	<!-- Replace the string below with your REVERSED_CLIENT_ID after downloading
+	     GoogleService-Info.plist from Firebase / Google Cloud Console for iOS.
+	     Format: com.googleusercontent.apps.{your-ios-client-id-prefix} -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>REPLACE_WITH_REVERSED_IOS_CLIENT_ID</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

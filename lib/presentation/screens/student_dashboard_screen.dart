@@ -7,7 +7,7 @@ import '../../data/datasources/auth_remote_data_source.dart';
 import '../../data/datasources/profile_remote_data_source.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
-  const StudentDashboardScreen({Key? key}) : super(key: key);
+  const StudentDashboardScreen({super.key});
 
   @override
   State<StudentDashboardScreen> createState() => _StudentDashboardScreenState();

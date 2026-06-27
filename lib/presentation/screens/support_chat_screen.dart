@@ -44,8 +44,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         final roomId = rooms[0]['id'] ?? '';
         final msgResponse = await http.get(
           Uri.parse(
-            ApiConstants.baseUrl +
-                '${ApiConstants.chatRoomMessages}$roomId/messages',
+            '${ApiConstants.baseUrl}${ApiConstants.chatRoomMessages}$roomId/messages',
           ),
           headers: {'Authorization': 'Bearer $token'},
         );
@@ -103,8 +102,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         // Send message to room
         final msgResponse = await http.post(
           Uri.parse(
-            ApiConstants.baseUrl +
-                '${ApiConstants.chatRoomMessages}$roomId/messages',
+            '${ApiConstants.baseUrl}${ApiConstants.chatRoomMessages}$roomId/messages',
           ),
           headers: {
             'Authorization': 'Bearer $token',

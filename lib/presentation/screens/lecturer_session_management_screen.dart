@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../presentation/blocs/live_session_bloc.dart';
@@ -12,7 +12,7 @@ const _kNavy = Color(0xFF1A237E);
 const _kBlue = Color(0xFF1976D2);
 const _kBg = Color(0xFFF5F6FA);
 
-// ── Lecturer session list ────────────────────────────────────────────────────
+// â”€â”€ Lecturer session list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class LecturerSessionManagementScreen extends StatefulWidget {
   const LecturerSessionManagementScreen({super.key});
@@ -25,7 +25,6 @@ class LecturerSessionManagementScreen extends StatefulWidget {
 class _LecturerSessionManagementScreenState
     extends State<LecturerSessionManagementScreen> {
   List<Map<String, dynamic>> _pendingRequests = [];
-  List<Map<String, dynamic>> _mySlots = [];
   bool _loadingAll = false;
 
   @override
@@ -36,7 +35,7 @@ class _LecturerSessionManagementScreenState
 
   Future<void> _loadAll() async {
     if (mounted) setState(() => _loadingAll = true);
-    await Future.wait([_loadSessions(), _loadRequests(), _loadSlots()]);
+    await Future.wait([_loadSessions(), _loadRequests()]);
     if (mounted) setState(() => _loadingAll = false);
   }
 
@@ -62,6 +61,11 @@ class _LecturerSessionManagementScreenState
   }
 
   Future<void> _confirmRequest(String requestId) async {
+    // Optimistically remove so it can't be double-tapped
+    if (mounted) {
+      setState(() => _pendingRequests.removeWhere(
+          (r) => (r['id'] ?? r['_id'] ?? '').toString() == requestId));
+    }
     final token = await SecureStorage.getToken();
     if (token == null || token.isEmpty) return;
     try {
@@ -70,31 +74,16 @@ class _LecturerSessionManagementScreenState
       _loadAll();
     } catch (e) {
       _snack('Failed: ${e.toString().replaceAll('Exception: ', '')}', Colors.red[700]!);
-    }
-  }
-
-  Future<void> _loadSlots() async {
-    final token = await SecureStorage.getToken();
-    if (token == null || token.isEmpty || !mounted) return;
-    try {
-      final slots = await LiveSessionRemoteDataSource().fetchMyAvailabilitySlots(token);
-      if (mounted) setState(() => _mySlots = slots);
-    } catch (_) {}
-  }
-
-  Future<void> _deleteSlot(String slotId) async {
-    final token = await SecureStorage.getToken();
-    if (token == null || token.isEmpty) return;
-    try {
-      await LiveSessionRemoteDataSource().deleteAvailabilitySlot(slotId, token);
-      _snack('Availability slot deleted', Colors.green[700]!);
-      _loadAll();
-    } catch (e) {
-      _snack('Failed: ${e.toString().replaceAll('Exception: ', '')}', Colors.red[700]!);
+      _loadRequests(); // restore on failure
     }
   }
 
   Future<void> _cancelRequest(String requestId) async {
+    // Optimistically remove so it can't be double-tapped
+    if (mounted) {
+      setState(() => _pendingRequests.removeWhere(
+          (r) => (r['id'] ?? r['_id'] ?? '').toString() == requestId));
+    }
     final token = await SecureStorage.getToken();
     if (token == null || token.isEmpty) return;
     try {
@@ -103,6 +92,7 @@ class _LecturerSessionManagementScreenState
       _loadAll();
     } catch (e) {
       _snack('Failed: ${e.toString().replaceAll('Exception: ', '')}', Colors.red[700]!);
+      _loadRequests(); // restore on failure
     }
   }
 
@@ -114,15 +104,6 @@ class _LecturerSessionManagementScreenState
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ));
-  }
-
-  void _openAvailabilitySheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _SetAvailabilitySheet(onSaved: _loadAll),
-    );
   }
 
   void _openCreateGroupSessionSheet() {
@@ -242,31 +223,13 @@ class _LecturerSessionManagementScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _kBg,
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'avail',
-            onPressed: _openAvailabilitySheet,
-            backgroundColor: Colors.white,
-            foregroundColor: _kNavy,
-            elevation: 2,
-            icon: const Icon(Icons.schedule, size: 18),
-            label: const Text('Availability',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton.extended(
-            heroTag: 'create',
-            onPressed: _openCreateGroupSessionSheet,
-            backgroundColor: _kNavy,
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text('Create Session',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600)),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openCreateGroupSessionSheet,
+        backgroundColor: _kNavy,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Create Session',
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w600)),
       ),
       body: BlocBuilder<LiveSessionBloc, LiveSessionState>(
         builder: (context, state) {
@@ -395,10 +358,10 @@ class _LecturerSessionManagementScreenState
     }
 
     final sessions = state is LiveSessionLoaded ? state.sessions : <dynamic>[];
-    final hasContent = sessions.isNotEmpty || _pendingRequests.isNotEmpty || _mySlots.isNotEmpty;
+    final hasContent = sessions.isNotEmpty || _pendingRequests.isNotEmpty;
 
     if (!hasContent && !_loadingAll && state is LiveSessionLoaded) {
-      return _EmptySessionsState(onCreate: _openAvailabilitySheet);
+      return _EmptySessionsState(onCreate: _openCreateGroupSessionSheet);
     }
 
     return RefreshIndicator(
@@ -421,20 +384,8 @@ class _LecturerSessionManagementScreenState
                 )),
             const SizedBox(height: 8),
           ],
-          if (_mySlots.isNotEmpty) ...[
-            _SectionHeader(
-                title: 'My Availability Slots',
-                count: _mySlots.length,
-                color: Colors.teal[700]!),
-            ..._mySlots.map((slot) => _AvailabilitySlotCard(
-                  slot: slot,
-                  onDelete: () => _deleteSlot(
-                      (slot['id'] ?? slot['_id'] ?? '').toString()),
-                )),
-            const SizedBox(height: 8),
-          ],
           if (sessions.isNotEmpty) ...[
-            if (_pendingRequests.isNotEmpty || _mySlots.isNotEmpty)
+            if (_pendingRequests.isNotEmpty)
               _SectionHeader(title: 'My Sessions', color: _kNavy),
             ...sessions.map((session) {
               final bloc = context.read<LiveSessionBloc>();
@@ -453,11 +404,8 @@ class _LecturerSessionManagementScreenState
                 onAnalyticsTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => BlocProvider.value(
-                      value: bloc,
-                      child:
-                          SessionAnalyticsScreen(sessionId: session.id),
-                    ),
+                    builder: (_) => SessionAnalyticsScreen(
+                        sessionId: session.id, session: session),
                   ),
                 ),
                 onApplicationsTap: () =>
@@ -493,7 +441,7 @@ class _LecturerSessionManagementScreenState
   }
 }
 
-// ── Header stat pill ─────────────────────────────────────────────────────────
+// â”€â”€ Header stat pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _HeaderStat extends StatelessWidget {
   final String label;
@@ -543,7 +491,7 @@ class _HeaderStat extends StatelessWidget {
   }
 }
 
-// ── Session card ─────────────────────────────────────────────────────────────
+// â”€â”€ Session card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _SessionCard extends StatelessWidget {
   final dynamic session;
@@ -787,7 +735,7 @@ class _MetaChip extends StatelessWidget {
   }
 }
 
-// ── Empty / Error states ─────────────────────────────────────────────────────
+// â”€â”€ Empty / Error states â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _EmptySessionsState extends StatelessWidget {
   final VoidCallback onCreate;
@@ -821,7 +769,7 @@ class _EmptySessionsState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Set your available time slots so\nstudents can request sessions.',
+              'Create your first live session\nand start teaching students.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black45, fontSize: 14, height: 1.5),
             ),
@@ -835,8 +783,8 @@ class _EmptySessionsState extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
-              icon: const Icon(Icons.schedule, color: Colors.white),
-              label: const Text('Set Availability',
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text('Create Session',
                   style: TextStyle(
                       color: Colors.white, fontWeight: FontWeight.w600)),
             ),
@@ -889,7 +837,7 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-// ── Section Header ────────────────────────────────────────────────────────────
+// â”€â”€ Section Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _SectionHeader extends StatelessWidget {
   final String title;
@@ -920,7 +868,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ── Map Request Card (for raw API responses) ──────────────────────────────────
+// â”€â”€ Map Request Card (for raw API responses) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _MapRequestCard extends StatelessWidget {
   final Map<String, dynamic> request;
@@ -1023,476 +971,8 @@ class _MapRequestCard extends StatelessWidget {
   }
 }
 
-// ── Set Availability Bottom Sheet ─────────────────────────────────────────────
 
-class _SetAvailabilitySheet extends StatefulWidget {
-  final Future<void> Function()? onSaved;
-  const _SetAvailabilitySheet({this.onSaved});
-
-  @override
-  State<_SetAvailabilitySheet> createState() => _SetAvailabilitySheetState();
-}
-
-class _SetAvailabilitySheetState extends State<_SetAvailabilitySheet> {
-  int _dayOfWeek = 1;
-  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
-  TimeOfDay _endTime = const TimeOfDay(hour: 11, minute: 0);
-  int _sessionDuration = 60;
-  bool _submitting = false;
-  late String _selectedTz;
-
-  static const _days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  // label → IANA value. Note: backend has @MinLength(15) so short names like
-  // "Africa/Lagos" (12 chars) are rejected — using equivalent ≥15-char names.
-  static const _tzEntries = <Map<String, String>>[
-    // ── West Africa (UTC+1) — put first ──────────────────────────────
-    {'label': 'West Africa – Lagos / Accra (UTC+1)', 'value': 'Africa/Porto-Novo'},
-    {'label': 'West Africa – Abuja / Dakar (UTC+1)', 'value': 'Africa/Kinshasa'},
-    {'label': 'West Africa – Libreville (UTC+1)',    'value': 'Africa/Libreville'},
-    // ── Rest of Africa ───────────────────────────────────────────────
-    {'label': 'South Africa – Johannesburg (UTC+2)', 'value': 'Africa/Johannesburg'},
-    {'label': 'East Africa – Nairobi (UTC+3)',       'value': 'Africa/Addis_Ababa'},
-    {'label': 'North Africa – Cairo (UTC+2)',        'value': 'Africa/Khartoum'},
-    {'label': 'North Africa – Casablanca (UTC+0)',   'value': 'Atlantic/Reykjavik'},
-    // ── Europe ───────────────────────────────────────────────────────
-    {'label': 'UK / Ireland – London (UTC+0)',       'value': 'Atlantic/Reykjavik'},
-    {'label': 'Central Europe – Paris / Berlin (UTC+1)', 'value': 'Europe/Amsterdam'},
-    {'label': 'Eastern Europe – Istanbul (UTC+3)',   'value': 'Europe/Istanbul'},
-    {'label': 'Russia – Moscow (UTC+3)',             'value': 'Europe/Volgograd'},
-    // ── Americas ─────────────────────────────────────────────────────
-    {'label': 'Eastern US / Canada (UTC-5)',         'value': 'America/New_York'},
-    {'label': 'Central US (UTC-6)',                  'value': 'America/Chicago'},
-    {'label': 'Mountain US (UTC-7)',                 'value': 'America/Denver'},
-    {'label': 'Pacific US (UTC-8)',                  'value': 'America/Los_Angeles'},
-    {'label': 'Brazil – São Paulo (UTC-3)',          'value': 'America/Sao_Paulo'},
-    // ── Asia ─────────────────────────────────────────────────────────
-    {'label': 'India (UTC+5:30)',                    'value': 'Asia/Kuala_Lumpur'},
-    {'label': 'Gulf – Dubai / Riyadh (UTC+4)',       'value': 'Asia/Muscat'},
-    {'label': 'SE Asia – Bangkok / Jakarta (UTC+7)', 'value': 'Asia/Bangkok'},
-    {'label': 'SE Asia – Singapore / KL (UTC+8)',    'value': 'Asia/Kuala_Lumpur'},
-    {'label': 'China / Hong Kong (UTC+8)',           'value': 'Asia/Hong_Kong'},
-    {'label': 'Japan / Korea (UTC+9)',               'value': 'Asia/Pyongyang'},
-    // ── Pacific / Australia ──────────────────────────────────────────
-    {'label': 'Australia – Sydney (UTC+10)',         'value': 'Australia/Sydney'},
-    {'label': 'New Zealand (UTC+12)',                'value': 'Pacific/Auckland'},
-    {'label': 'UTC (no offset)',                     'value': 'Atlantic/Reykjavik'},
-  ];
-
-  String _guessValue() {
-    final h = DateTime.now().timeZoneOffset.inHours;
-    if (h == 1) return 'Africa/Porto-Novo';
-    if (h == 2) return 'Africa/Johannesburg';
-    if (h == 3) return 'Africa/Addis_Ababa';
-    if (h == -5) return 'America/New_York';
-    if (h == -6) return 'America/Chicago';
-    if (h == -8) return 'America/Los_Angeles';
-    if (h == 8) return 'Asia/Kuala_Lumpur';
-    return 'Africa/Porto-Novo';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedTz = _guessValue();
-  }
-
-  String _fmt(TimeOfDay t) {
-    final h = t.hour.toString().padLeft(2, '0');
-    final m = t.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
-
-  Future<void> _pickTime(bool isStart) async {
-    final t = await showTimePicker(
-      context: context,
-      initialTime: isStart ? _startTime : _endTime,
-      builder: (ctx, child) => Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: const ColorScheme.light(primary: _kNavy, onPrimary: Colors.white),
-        ),
-        child: child!,
-      ),
-    );
-    if (t != null && mounted) {
-      setState(() => isStart ? _startTime = t : _endTime = t);
-    }
-  }
-
-  Future<void> _submit() async {
-    if (_startTime.hour * 60 + _startTime.minute >= _endTime.hour * 60 + _endTime.minute) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('End time must be after start time')));
-      return;
-    }
-    setState(() => _submitting = true);
-    try {
-      final token = await SecureStorage.getToken();
-      if (token == null || token.isEmpty || !mounted) { setState(() => _submitting = false); return; }
-      await LiveSessionRemoteDataSource().setAvailability(token, {
-        'dayOfWeek': _dayOfWeek,
-        'startTime': _fmt(_startTime),
-        'endTime': _fmt(_endTime),
-        'timezone': _selectedTz,
-        'sessionDuration': _sessionDuration,
-      });
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Availability saved!'),
-        backgroundColor: Colors.green[700],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ));
-      await widget.onSaved?.call();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-        backgroundColor: Colors.red[700],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    return Container(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, mq.viewInsets.bottom + 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(child: Container(width: 44, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: 16),
-          Row(children: [
-            Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _kNavy.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.schedule, color: _kNavy, size: 22)),
-            const SizedBox(width: 12),
-            const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Set Availability', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _kNavy)),
-              Text('Students can request sessions in these slots', style: TextStyle(color: Colors.black45, fontSize: 12)),
-            ]),
-          ]),
-          const SizedBox(height: 24),
-          _FieldLabel('Day of Week'),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(7, (i) {
-                final selected = _dayOfWeek == i;
-                return GestureDetector(
-                  onTap: () => setState(() => _dayOfWeek = i),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: selected ? _kNavy : const Color(0xFFF0F4FF),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(_days[i], style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: selected ? Colors.white : Colors.black54,
-                    )),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _FieldLabel('Start Time'),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () => _pickTime(true),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(color: const Color(0xFFF0F4FF), borderRadius: BorderRadius.circular(12)),
-                  child: Row(children: [
-                    const Icon(Icons.access_time, color: _kBlue, size: 18),
-                    const SizedBox(width: 8),
-                    Text(_startTime.format(context), style: const TextStyle(fontWeight: FontWeight.w600, color: _kNavy)),
-                  ]),
-                ),
-              ),
-            ])),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _FieldLabel('End Time'),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () => _pickTime(false),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(color: const Color(0xFFF0F4FF), borderRadius: BorderRadius.circular(12)),
-                  child: Row(children: [
-                    const Icon(Icons.access_time, color: _kBlue, size: 18),
-                    const SizedBox(width: 8),
-                    Text(_endTime.format(context), style: const TextStyle(fontWeight: FontWeight.w600, color: _kNavy)),
-                  ]),
-                ),
-              ),
-            ])),
-          ]),
-          const SizedBox(height: 20),
-          _FieldLabel('Session Duration (minutes)'),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(color: const Color(0xFFF0F4FF), borderRadius: BorderRadius.circular(12)),
-            child: Row(
-              children: [
-                const Icon(Icons.timer_outlined, color: _kBlue, size: 19),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text('$_sessionDuration min',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: _kNavy)),
-                ),
-                _DurationBtn(icon: Icons.remove, onTap: () {
-                  if (_sessionDuration > 15) setState(() => _sessionDuration -= 15);
-                }),
-                const SizedBox(width: 8),
-                _DurationBtn(icon: Icons.add, onTap: () {
-                  setState(() => _sessionDuration += 15);
-                }),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          _FieldLabel('Timezone'),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedTz,
-            isExpanded: true,
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.public, color: _kBlue, size: 19),
-              filled: true,
-              fillColor: const Color(0xFFF0F4FF),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBlue, width: 1.5)),
-            ),
-            style: const TextStyle(fontSize: 13, color: Color(0xFF263238)),
-            items: _tzEntries.map((e) => DropdownMenuItem(
-              value: e['value'],
-              child: Text(e['label']!, overflow: TextOverflow.ellipsis),
-            )).toList(),
-            onChanged: (v) { if (v != null) setState(() => _selectedTz = v); },
-          ),
-          const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _submitting ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kNavy,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: _submitting
-                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                  : const Text('Save Availability', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.black45)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Availability Slot Card ────────────────────────────────────────────────────
-
-class _AvailabilitySlotCard extends StatelessWidget {
-  final Map<String, dynamic> slot;
-  final VoidCallback onDelete;
-  const _AvailabilitySlotCard({required this.slot, required this.onDelete});
-
-  static const _daysFull = [
-    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
-  ];
-  static const _daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  String _dayFull() {
-    final d = (slot['dayOfWeek'] as num?)?.toInt() ?? 0;
-    return (d >= 0 && d < _daysFull.length) ? _daysFull[d] : 'Day $d';
-  }
-
-  String _dayShort() {
-    final d = (slot['dayOfWeek'] as num?)?.toInt() ?? 0;
-    return (d >= 0 && d < _daysShort.length) ? _daysShort[d] : 'D$d';
-  }
-
-  String _friendlyTz(String raw) {
-    // Strip continent prefix for display: "Africa/Porto-Novo" → "Porto-Novo"
-    final parts = raw.split('/');
-    return parts.length > 1 ? parts.last.replaceAll('_', ' ') : raw;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final dayFull = _dayFull();
-    final dayShort = _dayShort();
-    final start = slot['startTime']?.toString() ?? '--:--';
-    final end = slot['endTime']?.toString() ?? '--:--';
-    final duration = (slot['sessionDuration'] as num?)?.toInt() ?? 0;
-    final tz = slot['timezone']?.toString() ?? '';
-    final tzDisplay = tz.isNotEmpty ? _friendlyTz(tz) : '';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.teal.withValues(alpha: 0.25)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: IntrinsicHeight(
-          child: Row(
-            children: [
-              // Teal left bar
-              Container(width: 5, color: Colors.teal[700]),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Top row: day badge + status chip + delete
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.teal[700]!.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              dayShort,
-                              style: TextStyle(
-                                color: Colors.teal[700],
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              dayFull,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: _kNavy,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.teal.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Active',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.teal[700],
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.delete_outline_rounded,
-                                color: Colors.red[400], size: 19),
-                            onPressed: onDelete,
-                            padding: const EdgeInsets.only(left: 4),
-                            constraints:
-                                const BoxConstraints(minWidth: 32, minHeight: 32),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      // Time range
-                      Row(
-                        children: [
-                          const Icon(Icons.access_time_rounded,
-                              size: 14, color: Colors.black38),
-                          const SizedBox(width: 5),
-                          Text(
-                            '$start – $end',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: _kNavy,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          const Icon(Icons.timer_outlined,
-                              size: 14, color: Colors.black38),
-                          const SizedBox(width: 5),
-                          Text(
-                            '$duration min / session',
-                            style: const TextStyle(
-                                fontSize: 13, color: Colors.black54),
-                          ),
-                        ],
-                      ),
-                      if (tzDisplay.isNotEmpty) ...[
-                        const SizedBox(height: 5),
-                        Row(
-                          children: [
-                            const Icon(Icons.public_rounded,
-                                size: 14, color: Colors.black38),
-                            const SizedBox(width: 5),
-                            Text(
-                              tzDisplay,
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.black45),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Reschedule Session Sheet ──────────────────────────────────────────────────
+// â”€â”€ Reschedule Session Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _RescheduleSessionSheet extends StatefulWidget {
   final dynamic session;
@@ -1729,7 +1209,7 @@ class _RescheduleSessionSheetState extends State<_RescheduleSessionSheet> {
   }
 }
 
-// ── Create Group Session Sheet ────────────────────────────────────────────────
+// â”€â”€ Create Group Session Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _CreateGroupSessionSheet extends StatefulWidget {
   final Future<void> Function()? onCreated;
@@ -2013,7 +1493,7 @@ class _CreateGroupSessionSheetState extends State<_CreateGroupSessionSheet> {
                 items: [
                   const DropdownMenuItem<String>(
                     value: null,
-                    child: Text('— No specific course —',
+                    child: Text('â€” No specific course â€”',
                         style: TextStyle(color: Colors.black45)),
                   ),
                   ..._courses.map((c) => DropdownMenuItem<String>(
@@ -2112,8 +1592,9 @@ class _CreateGroupSessionSheetState extends State<_CreateGroupSessionSheet> {
                           _DurationBtn(
                               icon: Icons.remove,
                               onTap: () {
-                                if (_durationMinutes > 30)
+                                if (_durationMinutes > 30) {
                                   setState(() => _durationMinutes -= 15);
+                                }
                               }),
                           const SizedBox(width: 6),
                           _DurationBtn(
@@ -2149,8 +1630,9 @@ class _CreateGroupSessionSheetState extends State<_CreateGroupSessionSheet> {
                           _DurationBtn(
                               icon: Icons.remove,
                               onTap: () {
-                                if (_maxStudents > 5)
+                                if (_maxStudents > 5) {
                                   setState(() => _maxStudents -= 5);
+                                }
                               }),
                           const SizedBox(width: 6),
                           _DurationBtn(
@@ -2202,7 +1684,7 @@ class _CreateGroupSessionSheetState extends State<_CreateGroupSessionSheet> {
   }
 }
 
-// ── Session Applications Sheet ────────────────────────────────────────────────
+// â”€â”€ Session Applications Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _SessionApplicationsSheet extends StatefulWidget {
   final String sessionId;
@@ -2238,15 +1720,19 @@ class _SessionApplicationsSheetState
       if (token == null || token.isEmpty) throw Exception('Not authenticated');
       final list = await LiveSessionRemoteDataSource()
           .fetchApplicationsForSession(widget.sessionId, token);
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _applications = list;
         _loading = false;
       });
+      }
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
         _loading = false;
       });
+      }
     }
   }
 
@@ -2366,7 +1852,7 @@ class _SessionApplicationsSheetState
                                 fontSize: 15,
                                 color: _kNavy)),
                         Text(
-                            '${_applications.length} application(s) · $accepted accepted',
+                            '${_applications.length} application(s) Â· $accepted accepted',
                             style: const TextStyle(
                                 fontSize: 12, color: Colors.black45)),
                       ]),
@@ -2610,7 +2096,7 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-// ── Session Requests Management ───────────────────────────────────────────────
+// â”€â”€ Session Requests Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class SessionRequestsManagementScreen extends StatefulWidget {
   final String sessionId;
@@ -2931,91 +2417,196 @@ class _ProcessedCard extends StatelessWidget {
   }
 }
 
-// ── Session Analytics Screen ──────────────────────────────────────────────────
+// â”€â”€ Session Analytics Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class SessionAnalyticsScreen extends StatefulWidget {
   final String sessionId;
-  const SessionAnalyticsScreen({super.key, required this.sessionId});
+  final dynamic session; // LiveSessionEntity
+  const SessionAnalyticsScreen({super.key, required this.sessionId, this.session});
 
   @override
-  State<SessionAnalyticsScreen> createState() =>
-      _SessionAnalyticsScreenState();
+  State<SessionAnalyticsScreen> createState() => _SessionAnalyticsScreenState();
 }
 
 class _SessionAnalyticsScreenState extends State<SessionAnalyticsScreen> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _applications = [];
+  List<Map<String, dynamic>> _attendance = [];
+  List<String> _feedbackNotes = [];
+
+  bool _isAccepted(Map<String, dynamic> a) {
+    final s = (a['status'] ?? '').toString().toLowerCase();
+    return s == 'accepted' || s == 'approved' || s == 'in_progress' || s == 'confirmed';
+  }
+
+  bool _isRejected(Map<String, dynamic> a) {
+    final s = (a['status'] ?? '').toString().toLowerCase();
+    return s == 'rejected' || s == 'denied' || s == 'declined' || s == 'cancelled';
+  }
+
+  bool _isPending(Map<String, dynamic> a) => !_isAccepted(a) && !_isRejected(a);
+
+  int get _totalRequests => _applications.length;
+  int get _accepted => _applications.where(_isAccepted).length;
+  int get _rejected => _applications.where(_isRejected).length;
+  int get _pending => _applications.where(_isPending).length;
+  int get _attended => _attendance.isNotEmpty ? _attendance.length : _accepted;
+  double get _attendancePct =>
+      _accepted > 0 ? (_attended / _accepted * 100).clamp(0.0, 100.0) : 0.0;
+
   @override
   void initState() {
     super.initState();
-    _loadAnalytics();
+    _load();
   }
 
-  void _loadAnalytics() async {
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
     final token = await SecureStorage.getToken();
-    if (token != null && mounted) {
-      context.read<LiveSessionBloc>().add(
-            FetchSessionAnalyticsEvent(widget.sessionId, token),
-          );
+    if (token == null || token.isEmpty) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    final ds = LiveSessionRemoteDataSource();
+    try {
+      final apps = await ds.fetchApplicationsForSession(widget.sessionId, token);
+      List<Map<String, dynamic>> att = [];
+      try { att = await ds.fetchSessionAttendance(widget.sessionId, token); } catch (_) {}
+      List<String> notes = [];
+      try {
+        final raw = await ds.fetchSessionAnalytics(widget.sessionId, token);
+        notes = List<String>.from(raw['feedbackNotes'] ?? []);
+      } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _applications = apps;
+        _attendance = att;
+        _feedbackNotes = notes;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString()
+            .replaceFirst('ApiException: ', '')
+            .replaceFirst('Exception: ', '');
+        _loading = false;
+      });
     }
   }
+
+  int get _durationMinutes {
+    try {
+      final planned = widget.session?.durationMinutes;
+      if (planned is int && planned > 0) return planned;
+    } catch (_) {}
+    try {
+      final sAt = widget.session?.scheduledAt as DateTime?;
+      final eAt = widget.session?.endAt as DateTime?;
+      if (sAt != null && eAt != null) return eAt.difference(sAt).inMinutes;
+    } catch (_) {}
+    return 0;
+  }
+
+  String get _durationLabel {
+    final mins = _durationMinutes;
+    if (mins <= 0) {
+      final sAt = widget.session?.scheduledAt as DateTime?;
+      if (sAt != null && DateTime.now().isAfter(sAt)) return 'Session ended';
+      return 'Not started yet';
+    }
+    if (mins >= 60) {
+      final h = mins ~/ 60;
+      final m = mins % 60;
+      return m == 0 ? '${h}h' : '${h}h ${m}m';
+    }
+    return '$mins min';
+  }
+
+  void _showDetail(
+    String title,
+    List<Map<String, dynamic>> people, {
+    bool allowActions = false,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AnalyticsDetailSheet(
+        title: title,
+        people: List.from(people),
+        sessionId: widget.sessionId,
+        allowActions: allowActions,
+        onRefresh: _load,
+      ),
+    );
+  }
+
+  String get _sessionTitle =>
+      (widget.session?.title as String?) ?? '';
+
+  DateTime? get _sessionDate =>
+      widget.session?.scheduledAt as DateTime?;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _kBg,
-      body: BlocBuilder<LiveSessionBloc, LiveSessionState>(
-        builder: (context, state) {
-          final sessionTitle = state is SessionAnalyticsLoaded
-              ? state.analytics.sessionTitle
-              : '';
-
-          return CustomScrollView(
-            slivers: [
-              // ── Collapsing header ──────────────────────────────────────
-              SliverAppBar(
-                pinned: true,
-                automaticallyImplyLeading: false,
-                expandedHeight: 130,
-                backgroundColor: _kNavy,
-                title: const Text(
-                  'Session Analytics',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.bar_chart_rounded,
-                        color: Colors.white),
-                    onPressed: () {},
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            automaticallyImplyLeading: false,
+            expandedHeight: 130,
+            backgroundColor: _kNavy,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            title: const Text(
+              'Session Analytics',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                onPressed: _loading ? null : _load,
+                tooltip: 'Refresh',
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_kNavy, _kBlue],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [_kNavy, _kBlue],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 52, 16, 16),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.videocam_rounded,
-                                  color: Colors.white, size: 20),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                sessionTitle.isNotEmpty
-                                    ? sessionTitle
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(56, 48, 16, 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.videocam_rounded,
+                              color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _sessionTitle.isNotEmpty
+                                    ? _sessionTitle
                                     : 'Session Analytics',
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -3025,173 +2616,189 @@ class _SessionAnalyticsScreenState extends State<SessionAnalyticsScreen> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                              if (_sessionDate != null) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  DateFormat('MMM d, yyyy • HH:mm').format(_sessionDate!),
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 11),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
               ),
+            ),
+          ),
 
-              // ── Body content ───────────────────────────────────────────
-              if (state is LiveSessionLoading)
-                const SliverFillRemaining(
-                  child: Center(
-                      child: CircularProgressIndicator(color: _kNavy)),
-                )
-              else if (state is LiveSessionError)
-                SliverFillRemaining(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.wifi_off_rounded,
-                              size: 52, color: Colors.blueGrey[200]),
-                          const SizedBox(height: 14),
-                          const Text('Analytics unavailable',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.black54)),
-                          const SizedBox(height: 6),
-                          Text(state.message,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  color: Colors.black38, fontSize: 13)),
-                          const SizedBox(height: 20),
-                          OutlinedButton.icon(
-                            onPressed: _loadAnalytics,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _kNavy,
-                              side: const BorderSide(color: _kNavy),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
-                          ),
-                        ],
+          if (_loading)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator(color: _kNavy)),
+            )
+          else if (_error != null)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.wifi_off_rounded,
+                          size: 52, color: Colors.blueGrey[200]),
+                      const SizedBox(height: 14),
+                      const Text('Analytics unavailable',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.black54)),
+                      const SizedBox(height: 6),
+                      Text(_error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Colors.black38, fontSize: 13)),
+                      const SizedBox(height: 20),
+                      OutlinedButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _kNavy,
+                          side: const BorderSide(color: _kNavy),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                )
-              else if (state is SessionAnalyticsLoaded)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+            )
+          else
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.4,
                       children: [
-                        GridView.count(
-                          crossAxisCount: 2,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.4,
-                          children: [
-                            _AnalyticsTile(
-                              title: 'Enrolled',
-                              value: state.analytics.totalStudentsEnrolled
-                                  .toString(),
-                              icon: Icons.people_outline_rounded,
-                              color: _kBlue,
-                            ),
-                            _AnalyticsTile(
-                              title: 'Requests',
-                              value: state.analytics.totalRequestsReceived
-                                  .toString(),
-                              icon: Icons.mail_outline_rounded,
-                              color: Colors.orange[700]!,
-                            ),
-                            _AnalyticsTile(
-                              title: 'Accepted',
-                              value:
-                                  state.analytics.totalAccepted.toString(),
-                              icon: Icons.check_circle_outline_rounded,
-                              color: Colors.green[700]!,
-                            ),
-                            _AnalyticsTile(
-                              title: 'Rejected',
-                              value:
-                                  state.analytics.totalRejected.toString(),
-                              icon: Icons.cancel_outlined,
-                              color: Colors.red[700]!,
-                            ),
-                            _AnalyticsTile(
-                              title: 'Attended',
-                              value:
-                                  state.analytics.totalAttended.toString(),
-                              icon: Icons.how_to_reg_rounded,
-                              color: Colors.purple[600]!,
-                            ),
-                            _AnalyticsTile(
-                              title: 'Attendance',
-                              value:
-                                  '${state.analytics.averageAttendancePercentage.toStringAsFixed(1)}%',
-                              icon: Icons.assessment_outlined,
-                              color: Colors.teal[600]!,
-                            ),
-                          ],
+                        _AnalyticsTile(
+                          title: 'Requests',
+                          value: _totalRequests.toString(),
+                          icon: Icons.mail_outline_rounded,
+                          color: Colors.orange[700]!,
+                          onTap: _totalRequests > 0
+                              ? () => _showDetail('All Requests', _applications)
+                              : null,
                         ),
-                        const SizedBox(height: 20),
-                        _InfoTile(
-                          icon: Icons.timer_outlined,
-                          title: 'Session Duration',
-                          value:
-                              '${state.analytics.totalDuration} minutes',
+                        _AnalyticsTile(
+                          title: 'Accepted',
+                          value: _accepted.toString(),
+                          icon: Icons.check_circle_outline_rounded,
+                          color: Colors.green[700]!,
+                          onTap: _accepted > 0
+                              ? () => _showDetail('Accepted',
+                                    _applications.where(_isAccepted).toList())
+                              : null,
                         ),
-                        if (state.analytics.feedbackNotes.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Feedback Notes',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: _kNavy),
-                          ),
-                          const SizedBox(height: 10),
-                          ...state.analytics.feedbackNotes
-                              .map((note) => Container(
-                                    margin:
-                                        const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius:
-                                          BorderRadius.circular(10),
-                                      boxShadow: [
-                                        BoxShadow(
-                                            color: Colors.black
-                                                .withValues(alpha: 0.04),
-                                            blurRadius: 4)
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.note_alt_outlined,
-                                            size: 16, color: _kBlue),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                            child: Text(note,
-                                                style: const TextStyle(
-                                                    fontSize: 13))),
-                                      ],
-                                    ),
-                                  )),
-                        ],
+                        _AnalyticsTile(
+                          title: 'Pending',
+                          value: _pending.toString(),
+                          icon: Icons.hourglass_empty_rounded,
+                          color: _kBlue,
+                          onTap: _pending > 0
+                              ? () => _showDetail('Pending',
+                                    _applications.where(_isPending).toList(),
+                                    allowActions: true)
+                              : null,
+                        ),
+                        _AnalyticsTile(
+                          title: 'Rejected',
+                          value: _rejected.toString(),
+                          icon: Icons.cancel_outlined,
+                          color: Colors.red[700]!,
+                          onTap: _rejected > 0
+                              ? () => _showDetail('Rejected',
+                                    _applications.where(_isRejected).toList())
+                              : null,
+                        ),
+                        _AnalyticsTile(
+                          title: 'Attended',
+                          value: _attended.toString(),
+                          icon: Icons.how_to_reg_rounded,
+                          color: Colors.purple[600]!,
+                          onTap: _attended > 0
+                              ? () => _showDetail(
+                                    'Attended',
+                                    _attendance.isNotEmpty
+                                        ? _attendance
+                                        : _applications.where(_isAccepted).toList(),
+                                  )
+                              : null,
+                        ),
+                        _AnalyticsTile(
+                          title: 'Attendance',
+                          value: '${_attendancePct.toStringAsFixed(1)}%',
+                          icon: Icons.assessment_outlined,
+                          color: Colors.teal[600]!,
+                        ),
                       ],
                     ),
-                  ),
-                )
-              else
-                const SliverFillRemaining(child: SizedBox.shrink()),
-            ],
-          );
-        },
+                    const SizedBox(height: 16),
+                    _InfoTile(
+                      icon: Icons.timer_outlined,
+                      title: 'Session Duration',
+                      value: _durationLabel,
+                    ),
+                    if (_feedbackNotes.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Feedback Notes',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: _kNavy),
+                      ),
+                      const SizedBox(height: 10),
+                      ..._feedbackNotes.map((note) => Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.04),
+                                    blurRadius: 4)
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.note_alt_outlined,
+                                    size: 16, color: _kBlue),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                    child: Text(note,
+                                        style: const TextStyle(fontSize: 13))),
+                              ],
+                            ),
+                          )),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -3202,50 +2809,387 @@ class _AnalyticsTile extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
 
   const _AnalyticsTile({
     required this.title,
     required this.value,
     required this.icon,
     required this.color,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 3)),
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: onTap != null
+              ? Border.all(color: color.withValues(alpha: 0.25))
+              : null,
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 3)),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: color, size: 16),
+                  ),
+                  const Spacer(),
+                  if (onTap != null)
+                    Icon(Icons.chevron_right_rounded,
+                        size: 16, color: color.withValues(alpha: 0.5)),
+                ],
+              ),
+              const Spacer(),
+              Text(value,
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 22,
+                      color: color)),
+              Text(title,
+                  style: const TextStyle(fontSize: 11, color: Colors.black45)),
+            ],
+          ),
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
+    );
+  }
+}
+
+// ── Analytics Detail Sheet ────────────────────────────────────────────────────────────────────────────────────────
+
+class _AnalyticsDetailSheet extends StatefulWidget {
+  final String title;
+  final List<Map<String, dynamic>> people;
+  final String sessionId;
+  final bool allowActions;
+  final VoidCallback onRefresh;
+
+  const _AnalyticsDetailSheet({
+    required this.title,
+    required this.people,
+    required this.sessionId,
+    this.allowActions = false,
+    required this.onRefresh,
+  });
+
+  @override
+  State<_AnalyticsDetailSheet> createState() => _AnalyticsDetailSheetState();
+}
+
+class _AnalyticsDetailSheetState extends State<_AnalyticsDetailSheet> {
+  late List<Map<String, dynamic>> _people;
+  final Set<String> _processing = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _people = List.from(widget.people);
+  }
+
+  String _name(Map<String, dynamic> app) {
+    final s = app['student'];
+    if (s is Map) {
+      final first = (s['firstName'] ?? s['first_name'] ?? '').toString();
+      final last = (s['lastName'] ?? s['last_name'] ?? '').toString();
+      final full = '$first $last'.trim();
+      if (full.isNotEmpty) return full;
+      return (s['name'] ?? s['username'] ?? '').toString();
+    }
+    return (app['studentName'] ?? 'Student').toString();
+  }
+
+  String _email(Map<String, dynamic> app) {
+    final s = app['student'];
+    if (s is Map) return (s['email'] ?? '').toString();
+    return (app['studentEmail'] ?? '').toString();
+  }
+
+  String _appId(Map<String, dynamic> app) =>
+      (app['id'] ?? app['_id'] ?? '').toString();
+
+  Future<void> _accept(Map<String, dynamic> app) async {
+    final id = _appId(app);
+    final name = _name(app);
+    setState(() => _processing.add(id));
+    try {
+      final token = await SecureStorage.getToken();
+      if (token == null) return;
+      await LiveSessionRemoteDataSource().acceptApplication(id, token);
+      if (!mounted) return;
+      setState(() {
+        _people.remove(app);
+        _processing.remove(id);
+      });
+      widget.onRefresh();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('$name accepted'),
+        backgroundColor: Colors.green[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _processing.remove(id));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', '')),
+        backgroundColor: Colors.red[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    }
+  }
+
+  Future<void> _reject(Map<String, dynamic> app) async {
+    final id = _appId(app);
+    final name = _name(app);
+    setState(() => _processing.add(id));
+    try {
+      final token = await SecureStorage.getToken();
+      if (token == null) return;
+      await LiveSessionRemoteDataSource().rejectApplication(id, token);
+      if (!mounted) return;
+      setState(() {
+        _people.remove(app);
+        _processing.remove(id);
+      });
+      widget.onRefresh();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('$name rejected'),
+        backgroundColor: Colors.orange[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _processing.remove(id));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', '')),
+        backgroundColor: Colors.red[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.92,
+      minChildSize: 0.3,
+      builder: (_, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(7),
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 16),
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2)),
             ),
-            const Spacer(),
-            Text(value,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                    color: color)),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 11, color: Colors.black45)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(
+                children: [
+                  Text(widget.title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: _kNavy)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _kNavy.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text('${_people.length}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, color: _kNavy)),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _people.isEmpty
+                  ? const Center(
+                      child: Text('No one here yet',
+                          style: TextStyle(color: Colors.black45)))
+                  : ListView.separated(
+                      controller: controller,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                      itemCount: _people.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) {
+                        final app = _people[i];
+                        final name = _name(app);
+                        final email = _email(app);
+                        final id = _appId(app);
+                        final processing = _processing.contains(id);
+                        final status =
+                            (app['status'] ?? '').toString().toLowerCase();
+                        final isNowAccepted = status == 'accepted' ||
+                            status == 'approved' ||
+                            status == 'in_progress' ||
+                            status == 'confirmed';
+                        final isNowRejected = status == 'rejected' ||
+                            status == 'denied' ||
+                            status == 'declined' ||
+                            status == 'cancelled';
+                        final isPending = !isNowAccepted && !isNowRejected;
+
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!),
+                            boxShadow: [
+                              BoxShadow(
+                                  color:
+                                      Colors.black.withValues(alpha: 0.03),
+                                  blurRadius: 4)
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: _kNavy,
+                                child: Text(
+                                  name.isNotEmpty
+                                      ? name[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14)),
+                                    if (email.isNotEmpty)
+                                      Text(email,
+                                          style: const TextStyle(
+                                              color: Colors.black45,
+                                              fontSize: 12)),
+                                    if (!isPending)
+                                      Container(
+                                        margin:
+                                            const EdgeInsets.only(top: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: (isNowAccepted
+                                                  ? Colors.green[700]!
+                                                  : Colors.red[700]!)
+                                              .withValues(alpha: 0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          isNowAccepted
+                                              ? 'Accepted'
+                                              : 'Rejected',
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: isNowAccepted
+                                                  ? Colors.green[700]
+                                                  : Colors.red[700]),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              if (processing)
+                                const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: _kNavy),
+                                )
+                              else if (widget.allowActions && isPending) ...[
+                                GestureDetector(
+                                  onTap: () => _reject(app),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red[50],
+                                      borderRadius:
+                                          BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: Colors.red[300]!),
+                                    ),
+                                    child: Text('Reject',
+                                        style: TextStyle(
+                                            color: Colors.red[700],
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12)),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                GestureDetector(
+                                  onTap: () => _accept(app),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green[50],
+                                      borderRadius:
+                                          BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: Colors.green[300]!),
+                                    ),
+                                    child: Text('Accept',
+                                        style: TextStyle(
+                                            color: Colors.green[700],
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12)),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
           ],
         ),
       ),

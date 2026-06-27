@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants/api_constants.dart';
+import '../../core/cache/app_cache.dart';
+import '../../core/http_utils.dart';
 import '../../core/secure_storage.dart';
-import '../../data/datasources/auth_remote_data_source.dart';
-import '../../data/datasources/profile_remote_data_source.dart';
 
 const _kPrimary = Color(0xFF1A237E);
 
@@ -16,114 +16,186 @@ class LecturerWithdrawalScreen extends StatefulWidget {
       _LecturerWithdrawalScreenState();
 }
 
-class _LecturerWithdrawalScreenState
-    extends State<LecturerWithdrawalScreen> {
-  final _amountCtrl = TextEditingController();
-  final _accountCtrl = TextEditingController();
-  final _bankCtrl = TextEditingController();
-  final _nameCtrl = TextEditingController();
+class _LecturerWithdrawalScreenState extends State<LecturerWithdrawalScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
 
   bool _loading = true;
-  bool _submitting = false;
-  double _availableBalance = 0;
-  List<Map<String, dynamic>> _history = [];
   String? _error;
+
+  // Dashboard
+  double _availableBalance = 0;
+  double _pendingAmount = 0;
+  double _totalPaid = 0;
+  bool _stripeConnected = false;
+
+  // Request payout
+  final _amountCtrl = TextEditingController();
+  bool _submitting = false;
+
+  // History
+  List<Map<String, dynamic>> _history = [];
+  bool _connectLoading = false;
 
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(length: 2, vsync: this);
     _load();
   }
 
   @override
   void dispose() {
+    _tabs.dispose();
     _amountCtrl.dispose();
-    _accountCtrl.dispose();
-    _bankCtrl.dispose();
-    _nameCtrl.dispose();
     super.dispose();
   }
 
+  Future<String?> _token() async {
+    final t = await SecureStorage.getToken();
+    if (t == null || t.isEmpty) throw Exception('Not authenticated');
+    return t;
+  }
+
+  void _applyDashboardData(Map<String, dynamic> d) {
+    _availableBalance =
+        double.tryParse((d['availableBalance'] ?? d['balance'] ?? 0).toString()) ?? 0;
+    _pendingAmount =
+        double.tryParse((d['pendingAmount'] ?? d['pending'] ?? 0).toString()) ?? 0;
+    _totalPaid =
+        double.tryParse((d['totalPaid'] ?? d['totalWithdrawn'] ?? 0).toString()) ?? 0;
+    _stripeConnected = d['stripeConnected'] == true ||
+        d['isConnected'] == true ||
+        (d['stripeAccountId'] != null && d['stripeAccountId'] != '');
+  }
+
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    // Serve cache immediately — no spinner on revisit
+    final cachedDash = AppCache.get<Map<String, dynamic>>('payout_dashboard');
+    final cachedHist = AppCache.get<List<Map<String, dynamic>>>('payout_history');
+    if (cachedDash != null) {
+      _applyDashboardData(cachedDash);
+      if (cachedHist != null) _history = cachedHist;
+      setState(() => _loading = false);
+    } else {
+      setState(() { _loading = true; _error = null; });
+    }
+
     try {
-      final token = await SecureStorage.getToken();
-      if (token == null || token.isEmpty) throw Exception('Not authenticated');
+      final token = await _token();
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
 
-      final ds = ProfileRemoteDataSource(AuthRemoteDataSource());
-      final analytics = await ds.fetchInstructorAnalytics(token);
-      _availableBalance =
-          double.tryParse((analytics['totalRevenue'] ?? 0).toString()) ?? 0;
-
-      // Fetch payment history as withdrawal record
-      final response = await http.get(
-        Uri.parse(ApiConstants.baseUrl + ApiConstants.paymentHistory),
-        headers: {'Authorization': 'Bearer $token'},
+      final dashRes = await apiGet(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.payoutsDashboard}'),
+        headers: headers,
       );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final list = data is List ? data : (data['payments'] ?? []);
-        _history = List<Map<String, dynamic>>.from(list);
+
+      if (dashRes.statusCode == 200) {
+        final data = jsonDecode(dashRes.body);
+        final d = (data is Map ? (data['data'] ?? data) : {}) as Map<String, dynamic>;
+        AppCache.set('payout_dashboard', d);
+        _applyDashboardData(d);
       }
 
-      setState(() => _loading = false);
+      final histRes = await apiGet(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.payoutsHistory}'),
+        headers: headers,
+      );
+      if (histRes.statusCode == 200) {
+        final data = jsonDecode(histRes.body);
+        final list = data is List
+            ? data
+            : (data['data'] ?? data['payouts'] ?? data['history'] ?? []);
+        _history = List<Map<String, dynamic>>.from(list is List ? list : []);
+        AppCache.set('payout_history', _history);
+      }
+
+      if (mounted) setState(() => _loading = false);
     } catch (e) {
-      setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
-        _loading = false;
-      });
+      if (mounted && cachedDash == null) {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+          _loading = false;
+        });
+      }
     }
   }
 
-  Future<void> _requestWithdrawal() async {
+  Future<void> _connectStripe() async {
+    setState(() => _connectLoading = true);
+    try {
+      final token = await _token();
+      final res = await apiGet(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.payoutsConnect}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        final url = (data['url'] ?? data['onboardingUrl'] ?? data['link'] ?? '').toString();
+        if (url.isNotEmpty) {
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } else {
+            _snack('Could not open browser. URL: $url', Colors.red);
+          }
+        } else {
+          _snack('No onboarding URL returned', Colors.red);
+        }
+      } else {
+        _snack('Failed to get Stripe onboarding link', Colors.red);
+      }
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''), Colors.red);
+    } finally {
+      if (mounted) setState(() => _connectLoading = false);
+    }
+  }
+
+  Future<void> _requestPayout() async {
     final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
     if (amount <= 0) {
-      _snack('Enter a valid withdrawal amount', Colors.orange);
+      _snack('Enter a valid amount', Colors.orange);
       return;
     }
     if (amount > _availableBalance) {
       _snack('Amount exceeds available balance', Colors.red);
       return;
     }
-    if (_accountCtrl.text.trim().isEmpty ||
-        _bankCtrl.text.trim().isEmpty ||
-        _nameCtrl.text.trim().isEmpty) {
-      _snack('Fill in all bank account details', Colors.orange);
+    if (!_stripeConnected) {
+      _snack('Connect your Stripe account first', Colors.orange);
       return;
     }
 
     setState(() => _submitting = true);
     try {
-      final token = await SecureStorage.getToken();
-      if (token == null || token.isEmpty) throw Exception('Not authenticated');
-
-      final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/payments/withdraw'),
+      final token = await _token();
+      final res = await apiPost(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.payoutsRequest}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'amount': amount,
-          'accountNumber': _accountCtrl.text.trim(),
-          'bankName': _bankCtrl.text.trim(),
-          'accountName': _nameCtrl.text.trim(),
-        }),
+        body: jsonEncode({'amount': amount}),
       );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (res.statusCode == 200 || res.statusCode == 201) {
         _amountCtrl.clear();
-        _snack('Withdrawal request submitted! Processing in 1-3 business days.',
-            Colors.green);
+        AppCache.invalidate('payout_dashboard');
+        AppCache.invalidate('payout_history');
+        _snack('Payout requested! Processing in 1-3 business days.', Colors.green);
         await _load();
+        _tabs.animateTo(1);
       } else {
-        String msg = 'Withdrawal failed';
+        String msg = 'Payout request failed';
         try {
-          final body = jsonDecode(response.body);
-          if (body['message'] is String) msg = body['message'] as String;
+          final b = jsonDecode(res.body);
+          if (b is Map) msg = (b['message'] ?? b['error'] ?? msg).toString();
         } catch (_) {}
         _snack(msg, Colors.red);
       }
@@ -136,9 +208,8 @@ class _LecturerWithdrawalScreenState
 
   void _snack(String msg, Color color) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 
   @override
@@ -146,245 +217,401 @@ class _LecturerWithdrawalScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        title: const Text('Withdraw Earnings'),
+        title: const Text('Earnings & Payouts'),
         backgroundColor: _kPrimary,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+        bottom: TabBar(
+          controller: _tabs,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white54,
+          indicatorColor: Colors.white,
+          tabs: const [
+            Tab(text: 'Request Payout'),
+            Tab(text: 'History'),
+          ],
+        ),
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: _kPrimary))
+          ? const Center(child: CircularProgressIndicator(color: _kPrimary))
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.error_outline,
-                          size: 48, color: Colors.red.shade300),
-                      const SizedBox(height: 12),
-                      Text(_error!,
-                          style: const TextStyle(color: Colors.black54)),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                          onPressed: _load, child: const Text('Retry')),
-                    ],
-                  ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _BalanceCard(balance: _availableBalance),
-                      const SizedBox(height: 20),
-                      _WithdrawalForm(
-                        amountCtrl: _amountCtrl,
-                        accountCtrl: _accountCtrl,
-                        bankCtrl: _bankCtrl,
-                        nameCtrl: _nameCtrl,
-                        maxAmount: _availableBalance,
-                        submitting: _submitting,
-                        onSubmit: _requestWithdrawal,
+              ? _ErrorView(error: _error!, onRetry: _load)
+              : Column(
+                  children: [
+                    _DashboardHeader(
+                      available: _availableBalance,
+                      pending: _pendingAmount,
+                      totalPaid: _totalPaid,
+                    ),
+                    if (!_stripeConnected)
+                      _StripeConnectBanner(
+                        loading: _connectLoading,
+                        onConnect: _connectStripe,
                       ),
-                      if (_history.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        const Text('Payment History',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 10),
-                        ..._history.take(10).map((tx) => _TxTile(tx: tx)),
-                      ],
-                    ],
-                  ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabs,
+                        children: [
+                          _RequestTab(
+                            amountCtrl: _amountCtrl,
+                            maxAmount: _availableBalance,
+                            submitting: _submitting,
+                            stripeConnected: _stripeConnected,
+                            onSubmit: _requestPayout,
+                          ),
+                          _HistoryTab(history: _history),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
     );
   }
 }
 
-class _BalanceCard extends StatelessWidget {
-  final double balance;
-  const _BalanceCard({required this.balance});
+// ── Dashboard header ──────────────────────────────────────────────────────────
+
+class _DashboardHeader extends StatelessWidget {
+  final double available;
+  final double pending;
+  final double totalPaid;
+  const _DashboardHeader(
+      {required this.available, required this.pending, required this.totalPaid});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
           colors: [_kPrimary, Color(0xFF1976D2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          const Text('Available Balance',
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 8),
-          Text(
-            '₦${balance.toStringAsFixed(2)}',
-            style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 32),
+          _Stat(label: 'Available', value: available, color: Colors.greenAccent),
+          _vDivider(),
+          _Stat(label: 'Pending', value: pending, color: Colors.amberAccent),
+          _vDivider(),
+          _Stat(label: 'Total Paid', value: totalPaid, color: Colors.white70),
+        ],
+      ),
+    );
+  }
+
+  Widget _vDivider() => Container(
+      width: 1, height: 40, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 4));
+}
+
+class _Stat extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color color;
+  const _Stat({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('\$${value.toStringAsFixed(2)}',
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+      ],
+    );
+  }
+}
+
+// ── Stripe connect banner ─────────────────────────────────────────────────────
+
+class _StripeConnectBanner extends StatelessWidget {
+  final bool loading;
+  final VoidCallback onConnect;
+  const _StripeConnectBanner({required this.loading, required this.onConnect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.amber.shade50,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.amber.shade700),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Connect your Stripe account to receive payouts',
+              style: TextStyle(fontSize: 13),
+            ),
           ),
-          const SizedBox(height: 4),
-          const Text('Total earnings from your courses',
-              style: TextStyle(color: Colors.white60, fontSize: 12)),
+          const SizedBox(width: 8),
+          loading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : ElevatedButton(
+                  onPressed: onConnect,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Connect', style: TextStyle(fontSize: 12)),
+                ),
         ],
       ),
     );
   }
 }
 
-class _WithdrawalForm extends StatelessWidget {
+// ── Request payout tab ────────────────────────────────────────────────────────
+
+class _RequestTab extends StatelessWidget {
   final TextEditingController amountCtrl;
-  final TextEditingController accountCtrl;
-  final TextEditingController bankCtrl;
-  final TextEditingController nameCtrl;
   final double maxAmount;
   final bool submitting;
+  final bool stripeConnected;
   final VoidCallback onSubmit;
 
-  const _WithdrawalForm({
+  const _RequestTab({
     required this.amountCtrl,
-    required this.accountCtrl,
-    required this.bankCtrl,
-    required this.nameCtrl,
     required this.maxAmount,
     required this.submitting,
+    required this.stripeConnected,
     required this.onSubmit,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Request Withdrawal',
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            const SizedBox(height: 16),
-            _input(amountCtrl, 'Amount (₦)',
-                icon: Icons.payments_outlined,
-                type: const TextInputType.numberWithOptions(decimal: true),
-                suffix: TextButton(
-                  onPressed: () => amountCtrl.text =
-                      maxAmount.toStringAsFixed(2),
-                  child: const Text('MAX',
-                      style: TextStyle(
-                          color: _kPrimary, fontWeight: FontWeight.bold)),
-                )),
-            const SizedBox(height: 12),
-            _input(accountCtrl, 'Account Number',
-                icon: Icons.account_balance,
-                type: TextInputType.number),
-            const SizedBox(height: 12),
-            _input(bankCtrl, 'Bank Name',
-                icon: Icons.business_outlined),
-            const SizedBox(height: 12),
-            _input(nameCtrl, 'Account Name',
-                icon: Icons.person_outline),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: submitting ? null : onSubmit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kPrimary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: submitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Request Withdrawal',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 15)),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Request a Payout',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 6),
+              Text(
+                'Available: \$${maxAmount.toStringAsFixed(2)}',
+                style: TextStyle(color: Colors.green.shade700, fontSize: 13),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              TextField(
+                controller: amountCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Amount (\$)',
+                  prefixIcon: const Icon(Icons.payments_outlined),
+                  suffixIcon: TextButton(
+                    onPressed: () =>
+                        amountCtrl.text = maxAmount.toStringAsFixed(2),
+                    child: const Text('MAX',
+                        style: TextStyle(
+                            color: _kPrimary, fontWeight: FontWeight.bold)),
+                  ),
+                  isDense: true,
+                  filled: true,
+                  fillColor: const Color(0xFFF5F6FA),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.blueGrey.shade200)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.blueGrey.shade200)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (!stripeConnected)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange.shade700, size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'You must connect your Stripe account before requesting a payout.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: submitting || !stripeConnected ? null : onSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: submitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Request Payout',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  'Payouts are processed in 1–3 business days via Stripe.',
+                  style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _input(TextEditingController ctrl, String label,
-      {IconData? icon,
-      TextInputType type = TextInputType.text,
-      Widget? suffix}) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: type,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: icon != null ? Icon(icon) : null,
-        suffixIcon: suffix,
-        isDense: true,
-        filled: true,
-        fillColor: const Color(0xFFF5F6FA),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.blueGrey.shade200)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.blueGrey.shade200)),
       ),
     );
   }
 }
 
-class _TxTile extends StatelessWidget {
-  final Map<String, dynamic> tx;
-  const _TxTile({required this.tx});
+// ── History tab ───────────────────────────────────────────────────────────────
+
+class _HistoryTab extends StatelessWidget {
+  final List<Map<String, dynamic>> history;
+  const _HistoryTab({required this.history});
 
   @override
   Widget build(BuildContext context) {
-    final amount =
-        double.tryParse((tx['amount'] ?? 0).toString()) ?? 0;
-    final course = (tx['courseName'] ??
-            tx['course']?['title'] ??
-            'Payment')
-        .toString();
-    final status = (tx['status'] ?? 'completed').toString();
-    final isPositive = status == 'completed' || status == 'succeeded';
+    if (history.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.receipt_long_outlined,
+                size: 56, color: Colors.blueGrey.shade200),
+            const SizedBox(height: 12),
+            Text('No payouts yet',
+                style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 15)),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: history.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (_, i) => _PayoutTile(tx: history[i]),
+    );
+  }
+}
+
+class _PayoutTile extends StatelessWidget {
+  final Map<String, dynamic> tx;
+  const _PayoutTile({required this.tx});
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = double.tryParse((tx['amount'] ?? 0).toString()) ?? 0;
+    final status = (tx['status'] ?? 'pending').toString().toLowerCase();
+    final date = tx['createdAt'] ?? tx['requestedAt'] ?? '';
+
+    Color statusColor;
+    IconData statusIcon;
+    switch (status) {
+      case 'completed':
+      case 'paid':
+        statusColor = Colors.green;
+        statusIcon = Icons.check_circle_outline;
+        break;
+      case 'pending':
+        statusColor = Colors.orange;
+        statusIcon = Icons.schedule;
+        break;
+      case 'failed':
+        statusColor = Colors.red;
+        statusIcon = Icons.cancel_outlined;
+        break;
+      default:
+        statusColor = Colors.blueGrey;
+        statusIcon = Icons.info_outline;
+    }
 
     return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child:
-            const Icon(Icons.payments, color: Colors.green, size: 20),
+      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      leading: CircleAvatar(
+        backgroundColor: statusColor.withValues(alpha: 0.12),
+        child: Icon(statusIcon, color: statusColor, size: 20),
       ),
-      title: Text(course,
-          style: const TextStyle(fontSize: 13),
-          overflow: TextOverflow.ellipsis),
-      trailing: Text(
-        '₦${amount.toStringAsFixed(2)}',
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: isPositive ? Colors.green : Colors.red,
+      title: Text(
+        '\$${amount.toStringAsFixed(2)}',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: date.isNotEmpty
+          ? Text(date.toString().split('T').first,
+              style: const TextStyle(fontSize: 12))
+          : null,
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: statusColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(status.toUpperCase(),
+            style: TextStyle(
+                color: statusColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 11)),
+      ),
+    );
+  }
+}
+
+// ── Error view ────────────────────────────────────────────────────────────────
+
+class _ErrorView extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+  const _ErrorView({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+            const SizedBox(height: 12),
+            Text(error,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black54)),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
         ),
       ),
     );

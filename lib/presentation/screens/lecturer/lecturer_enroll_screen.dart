@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class LecturerEnrollScreen extends StatelessWidget {
-  const LecturerEnrollScreen({Key? key}) : super(key: key);
+  const LecturerEnrollScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

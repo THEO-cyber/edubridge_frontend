@@ -36,10 +36,12 @@ class _SessionReviewsScreenState extends State<SessionReviewsScreen> {
           .fetchSessionReviews(widget.sessionId, token);
       if (mounted) setState(() { _reviews = reviews; _loading = false; });
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
       });
+      }
     }
   }
 

@@ -41,13 +41,42 @@ class _LecturerEarningsScreenState extends State<LecturerEarningsScreen> {
       if (token == null || token.isEmpty) throw Exception('Not authenticated');
 
       final results = await Future.wait([
-        _paymentDs.fetchPaymentHistory(token),
-        _profileDs.fetchInstructorAnalytics(token),
+        _paymentDs.fetchEarnings(token).catchError((_) async =>
+            {'transactions': <Map<String, dynamic>>[]}),
+        _profileDs.fetchInstructorAnalytics(token).catchError((_) async =>
+            <String, dynamic>{}),
       ]);
 
+      final earningsData = results[0];
+      final analyticsData = results[1];
+
+      // Merge: earnings endpoint overrides analytics totals if present
+      final mergedAnalytics = {
+        ...analyticsData,
+        if (earningsData['totalEarnings'] != null)
+          'totalRevenue': earningsData['totalEarnings'],
+        if (earningsData['availableBalance'] != null)
+          'availableBalance': earningsData['availableBalance'],
+        if (earningsData['pendingBalance'] != null)
+          'pendingBalance': earningsData['pendingBalance'],
+      };
+
+      // Transactions: prefer earnings endpoint, fall back to payment history
+      final rawTx = earningsData['transactions'] ??
+          earningsData['earnings'] ??
+          earningsData['payouts'];
+      final List<Map<String, dynamic>> txList;
+      if (rawTx is List && rawTx.isNotEmpty) {
+        txList = List<Map<String, dynamic>>.from(rawTx);
+      } else {
+        txList = await _paymentDs
+            .fetchPaymentHistory(token)
+            .catchError((_) async => <Map<String, dynamic>>[]);
+      }
+
       setState(() {
-        _transactions = results[0] as List<Map<String, dynamic>>;
-        _analytics = results[1] as Map<String, dynamic>;
+        _transactions = txList;
+        _analytics = mergedAnalytics;
         _loading = false;
       });
     } catch (e) {

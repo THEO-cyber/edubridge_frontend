@@ -6,8 +6,7 @@ import '../blocs/certificate_bloc.dart';
 class CertificateScreenEnhanced extends StatefulWidget {
   final String token;
 
-  const CertificateScreenEnhanced({Key? key, required this.token})
-    : super(key: key);
+  const CertificateScreenEnhanced({super.key, required this.token});
 
   @override
   State<CertificateScreenEnhanced> createState() =>

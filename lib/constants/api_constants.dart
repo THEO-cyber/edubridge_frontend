@@ -1,5 +1,5 @@
 class ApiConstants {
-  static const String baseUrl = 'http://10.167.251.55:3000/api/v1';
+  static const String baseUrl = 'http://192.168.1.152/api/v1';
 
   // Auth
   static const String login = '/auth/login';
@@ -14,6 +14,7 @@ class ApiConstants {
   static const String verifyEmail = '/auth/verify-email';
   static const String resendVerification = '/auth/resend-verification';
   static const String googleAuth = '/auth/google';
+  static const String googleMobileAuth = '/auth/google/mobile';
 
   // 2FA
   static const String twoFaEnable = '/auth/2fa/enable';
@@ -69,10 +70,11 @@ class ApiConstants {
       '/payments/$paymentId/refund';
 
   // Video
-  static const String uploadVideo = '/video-processing/upload';
+  static String uploadVideoForLesson(String lessonId) =>
+      '/video-processing/upload/$lessonId';
   static const String getVideo = '/uploads/';
   static String videoStatus(String videoId) =>
-      '/video-processing/status/$videoId';
+      '/video-processing/$videoId/status';
   static String videoStream(String videoId) =>
       '/video-processing/stream/$videoId';
   static String videoHls(String videoId) =>
@@ -183,6 +185,8 @@ class ApiConstants {
       '${courseSections(courseId)}/$sectionId';
   static String sectionLessons(String sectionId) =>
       '$sections/$sectionId/lessons';
+  static String lessonSections(String courseId) =>
+      '$lessons/sections/$courseId';
   static String lessonDetails(String lessonId) => '$lessons/$lessonId';
   static String enrollmentDetails(String enrollmentId) =>
       '$enroll/$enrollmentId';
@@ -226,15 +230,84 @@ class ApiConstants {
   static String notificationRead(String id) => '$notifications/$id/read';
   static String deleteNotification(String id) => '$notifications/$id';
 
-  // Admin
+  // Admin — users
+  static const String adminUsers = '/admin/users';
+  static String adminUserById(String id) => '/admin/users/$id';
+  static String adminDeactivateUser(String id) => '/admin/users/$id/deactivate';
+  static String adminActivateUser(String id) => '/admin/users/$id/activate';
+  static String adminChangeRole(String id) => '/admin/users/$id/role';
+  // Admin — courses
+  static const String adminCourses = '/admin/courses';
+  static String adminApproveCourse(String id) => '/admin/courses/$id/approve';
+  static String adminRejectCourse(String id) => '/admin/courses/$id/reject';
+  static String adminSuspendCourse(String id) => '/admin/courses/$id/suspend';
+  // Admin — categories
+  static const String adminCategories = '/admin/categories';
+  static String adminCategoryById(String id) => '/admin/categories/$id';
+  // Admin — stats
+  static const String adminStats = '/admin/dashboard/stats';
+  static const String adminActivity = '/admin/dashboard/activity';
+  // Admin — instructors
   static const String adminInstructors = '/admin/instructors';
   static const String adminReviews = '/admin/reviews';
   static String adminSuspend(String id) => '/admin/instructors/$id/suspend';
   static String adminWarn(String id) => '/admin/instructors/$id/warn';
   static String adminDeleteInstructor(String id) => '/admin/instructors/$id';
+  // Admin — notifications
+  static const String adminNotifications = '/admin/notifications';
+  static const String adminBroadcast = '/admin/notifications/broadcast';
+  static String adminNotifyUser(String id) => '/admin/notifications/user/$id';
+  // Admin — videos
+  static const String adminVideosPending = '/admin/videos/pending';
+  static String adminApproveVideo(String id) => '/admin/videos/$id/approve';
+  static String adminRejectVideo(String id) => '/admin/videos/$id/reject';
+  // Admin — applications
+  static const String adminApplications = '/applications/instructor';
+  static const String adminApplicationStats = '/applications/instructor/stats';
+  static String adminReviewApplication(String id) => '/applications/instructor/$id/review';
+  // Admin — payouts
+  static const String adminPayouts = '/payouts/admin/all';
 
   // Session reviews (instructor)
   static String sessionReviews(String sessionId) => '/live-sessions/$sessionId/reviews';
+
+  // Reports (additional)
+  static const String reportStats = '/reports/stats';
+  static String reviewReport(String id) => '/reports/$id/review';
+
+  // Applications (instructor)
+  static const String instructorApplicationSubmit = '/applications/instructor';
+  static const String myInstructorApplicationStatus = '/applications/instructor/mine';
+
+  // Coupons (admin)
+  static const String adminCoupons = '/coupons';
+  static String adminCouponById(String id) => '/coupons/$id';
+
+  // Payouts
+  static const String payoutsDashboardUrl = '/payouts/dashboard';
+  static const String payoutsConnectUrl = '/payouts/connect';
+  static const String payoutsRequestUrl = '/payouts/request';
+  static const String payoutsHistoryUrl = '/payouts/history';
+
+  // Quiz (instructor)
+  static String createQuizForLesson(String lessonId) => '/quizzes/lessons/$lessonId';
+  static String quizQuestions(String quizId) => '/quizzes/$quizId/questions';
+  static String updateQuestion(String questionId) => '/quizzes/questions/$questionId';
+  static String deleteQuestion(String questionId) => '/quizzes/questions/$questionId';
+  static String quizResultsAdmin(String quizId) => '/quizzes/$quizId/results';
+  static String publishQuiz(String quizId) => '/quizzes/$quizId/publish';
+  static String updateQuiz(String quizId) => '/quizzes/$quizId';
+
+  // Video — presigned 3-step upload flow
+  static String initiateUpload(String lessonId) =>
+      '/video-processing/initiate-upload/$lessonId';
+  static String completeUpload(String videoId) =>
+      '/video-processing/complete-upload/$videoId';
+  static String streamUrlForVideo(String videoId) =>
+      '/video-processing/stream-url/$videoId';
+
+  // Payouts — instructor earnings
+  static const String payoutsEarnings = '/payouts/earnings';
 }
 
 class AppColors {

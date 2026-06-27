@@ -23,9 +23,10 @@ class _LectureAnalyticsDashboardScreenState
   final _liveDs = LiveSessionRemoteDataSource();
 
   bool _loading = true;
-  Map<String, dynamic> _overall = {};
+  String? _analyticsError;
+  Map<String, dynamic> _analytics = {};
   List<Map<String, dynamic>> _sessions = [];
-  Map<String, dynamic> _profile = {};
+  List<Map<String, dynamic>> _requests = [];
 
   @override
   void initState() {
@@ -34,55 +35,77 @@ class _LectureAnalyticsDashboardScreenState
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() { _loading = true; _analyticsError = null; });
     final token = await SecureStorage.getToken();
     if (token == null || token.isEmpty) {
       if (mounted) setState(() => _loading = false);
       return;
     }
-    try {
-      _overall = await _liveDs.fetchOverallAnalytics(token);
-    } catch (_) {}
-    try {
-      _sessions = await _liveDs.fetchMyLiveSessions(token);
-    } catch (_) {}
+    await Future.wait<void>([
+      _loadAnalytics(token),
+      _loadSessions(token),
+      _loadRequests(token),
+    ]);
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadAnalytics(String token) async {
     try {
       final ds = ProfileRemoteDataSource(AuthRemoteDataSource());
-      _profile = await ds.fetchInstructorAnalytics(token);
-    } catch (_) {}
+      _analytics = await ds.fetchInstructorAnalytics(token);
+    } catch (e) {
+      _analytics = {};
+      _analyticsError = e.toString()
+          .replaceFirst('ApiException: ', '')
+          .replaceFirst('Exception: ', '');
+    }
+  }
 
-    if (mounted) setState(() => _loading = false);
+  Future<void> _loadSessions(String token) async {
+    try {
+      _sessions = await _liveDs.fetchMyLiveSessions(token);
+    } catch (_) {
+      _sessions = [];
+    }
+  }
+
+  Future<void> _loadRequests(String token) async {
+    try {
+      _requests = await _liveDs.fetchInstructorRequests(token);
+    } catch (_) {
+      _requests = [];
+    }
   }
 
   // ── Computed metrics ────────────────────────────────────────────────────
   int get _totalSessions =>
-      _i('totalSessions') ?? _sessions.length;
+      (_analytics['totalSessions'] as num?)?.toInt() ?? _sessions.length;
 
   int get _scheduledCount =>
-      _i('scheduledSessions') ??
-      _sessions
-          .where((s) =>
-              (s['status'] ?? '').toString().toLowerCase() == 'scheduled')
-          .length;
+      (_analytics['scheduledSessions'] as num?)?.toInt() ??
+      _sessions.where((s) => (s['status'] ?? '').toString().toLowerCase() == 'scheduled').length;
 
   int get _ongoingCount =>
-      _i('ongoingSessions') ??
-      _sessions
-          .where((s) =>
-              (s['status'] ?? '').toString().toLowerCase() == 'ongoing')
-          .length;
+      (_analytics['ongoingSessions'] as num?)?.toInt() ??
+      _sessions.where((s) => (s['status'] ?? '').toString().toLowerCase() == 'ongoing').length;
 
   int get _completedCount =>
-      _i('completedSessions') ??
-      _sessions
-          .where((s) =>
-              (s['status'] ?? '').toString().toLowerCase() == 'completed')
-          .length;
+      (_analytics['completedSessions'] as num?)?.toInt() ??
+      _sessions.where((s) => (s['status'] ?? '').toString().toLowerCase() == 'completed').length;
 
-  int get _totalRequests => _i('totalRequests') ?? 0;
-  int get _acceptedRequests => _i('acceptedRequests') ?? 0;
-  int get _rejectedRequests => _i('rejectedRequests') ?? 0;
-  int get _pendingRequests => _i('pendingRequests') ?? 0;
+  int get _totalRequests => _requests.length;
+
+  int get _acceptedRequests => _requests
+      .where((r) => (r['status'] ?? '').toString().toLowerCase() == 'accepted')
+      .length;
+
+  int get _rejectedRequests => _requests
+      .where((r) => (r['status'] ?? '').toString().toLowerCase() == 'rejected')
+      .length;
+
+  int get _pendingRequests => _requests
+      .where((r) => (r['status'] ?? '').toString().toLowerCase() == 'pending')
+      .length;
 
   double get _acceptanceRate {
     final total = _totalRequests;
@@ -91,20 +114,25 @@ class _LectureAnalyticsDashboardScreenState
   }
 
   double get _avgAttendance =>
-      (_overall['avgAttendance'] as num?)?.toDouble() ??
-      (_profile['avgAttendance'] as num?)?.toDouble() ??
+      (_analytics['avgAttendance'] as num?)?.toDouble() ??
+      (_analytics['averageAttendance'] as num?)?.toDouble() ??
       0.0;
 
   int get _totalStudents =>
-      _i('totalStudents') ??
-      _i('totalEnrollments', from: _profile) ??
+      (_analytics['totalEnrollments'] as num?)?.toInt() ??
+      (_analytics['totalStudents'] as num?)?.toInt() ??
       0;
 
-  double get _totalHours =>
-      (_overall['totalHours'] as num?)?.toDouble() ?? 0.0;
-
-  int? _i(String key, {Map<String, dynamic>? from}) =>
-      ((from ?? _overall)[key] as num?)?.toInt();
+  double get _totalHours {
+    final fromApi = (_analytics['totalHours'] as num?)?.toDouble();
+    if (fromApi != null) return fromApi;
+    double hours = 0;
+    for (final s in _sessions) {
+      final dur = (s['duration'] as num?)?.toDouble();
+      if (dur != null) hours += dur / 60.0;
+    }
+    return hours;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +243,32 @@ class _LectureAnalyticsDashboardScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ── Analytics error banner ────────────────────────
+                    if (_analyticsError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded,
+                                color: Colors.orange[700], size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Analytics unavailable: $_analyticsError',
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.orange[800]),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     // ── Session Status Breakdown ──────────────────────
                     _SectionTitle('Session Status'),
                     const SizedBox(height: 12),

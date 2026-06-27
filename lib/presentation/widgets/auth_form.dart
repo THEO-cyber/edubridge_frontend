@@ -53,7 +53,7 @@ class _AuthFormState extends State<AuthForm> {
           if (!widget.isLogin) ...[
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _role,
+              initialValue: _role,
               items: const [
                 DropdownMenuItem(value: 'student', child: Text('Student')),
                 DropdownMenuItem(value: 'teacher', child: Text('Teacher')),

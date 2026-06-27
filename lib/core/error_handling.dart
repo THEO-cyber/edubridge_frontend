@@ -8,19 +8,19 @@ class ApiException implements Exception {
 }
 
 class NetworkException extends ApiException {
-  NetworkException(String message) : super(message);
+  NetworkException(super.message);
 }
 
 class UnauthorizedException extends ApiException {
-  UnauthorizedException(String message) : super(message);
+  UnauthorizedException(super.message);
 }
 
 class NotFoundException extends ApiException {
-  NotFoundException(String message) : super(message);
+  NotFoundException(super.message);
 }
 
 class ValidationException extends ApiException {
-  ValidationException(String message) : super(message);
+  ValidationException(super.message);
 }
 
 class Requires2FAException implements Exception {

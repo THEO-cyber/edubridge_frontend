@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -5,10 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../constants/api_constants.dart';
+import '../../../core/cache/app_cache.dart';
 import '../../../core/secure_storage.dart';
+import '../../widgets/shimmer_widgets.dart';
 import '../../../data/datasources/course_remote_data_source.dart';
 import '../../../data/datasources/lesson_remote_data_source.dart';
 import '../../../data/datasources/video_processing_remote_data_source.dart';
+import '../instructor_quiz_screen.dart';
 
 const _kNavy = Color(0xFF1A237E);
 const _kBlue = Color(0xFF1976D2);
@@ -40,33 +44,34 @@ class _LecturerCourseManagementScreenState
   }
 
   Future<void> _loadCourses() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    const key = 'instructor_courses';
+
+    // Serve cache immediately — no spinner on revisit
+    final cached = AppCache.get<List<Map<String, dynamic>>>(key);
+    if (cached != null) {
+      setState(() { _courses = cached; _isLoading = false; });
+    } else {
+      setState(() { _isLoading = true; _error = null; });
+    }
+
     final token = await SecureStorage.getToken();
     if (token == null || token.isEmpty) {
       if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _error = 'Please login again to manage your courses.';
-      });
+      if (cached == null) setState(() { _isLoading = false; _error = 'Please login again.'; });
       return;
     }
-    _token = token; // store token immediately so create/edit works even if list fails
+    _token = token;
+
     try {
       final courses = await _courseDs.fetchInstructorCourses(token);
+      AppCache.set(key, courses);
       if (!mounted) return;
-      setState(() {
-        _courses = courses;
-        _isLoading = false;
-      });
+      setState(() { _courses = courses; _isLoading = false; });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _error = e.toString().replaceFirst('Exception: ', '');
-      });
+      if (cached == null) {
+        setState(() { _isLoading = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+      }
     }
   }
 
@@ -99,6 +104,7 @@ class _LecturerCourseManagementScreenState
     if (form == null) return;
     try {
       await _courseDs.createCourse(form, token);
+      AppCache.invalidate('instructor_courses');
       if (!mounted) return;
       _showSuccess('Course created successfully!');
       await _loadCourses();
@@ -121,6 +127,7 @@ class _LecturerCourseManagementScreenState
     if (form == null) return;
     try {
       await _courseDs.updateCourse(id, form, token);
+      AppCache.invalidate('instructor_courses');
       if (!mounted) return;
       _showSuccess('Course updated!');
       await _loadCourses();
@@ -141,6 +148,7 @@ class _LecturerCourseManagementScreenState
     if (id.isEmpty) return;
     try {
       await _courseDs.publishCourse(id, token);
+      AppCache.invalidate('instructor_courses');
       if (!mounted) return;
       _showSuccess('Course submitted for review!');
       await _loadCourses();
@@ -185,6 +193,7 @@ class _LecturerCourseManagementScreenState
     if (confirm != true) return;
     try {
       await _courseDs.deleteCourse(id, token);
+      AppCache.invalidate('instructor_courses');
       if (!mounted) return;
       _showSuccess('Course deleted.');
       await _loadCourses();
@@ -198,19 +207,19 @@ class _LecturerCourseManagementScreenState
     final courseId = _courseId(course);
     if (_token == null || courseId.isEmpty) return;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ContentMenuSheet(
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CourseContentScreen(
         courseTitle: _courseTitle(course),
         courseId: courseId,
         token: _token!,
         lessonDs: _lessonDs,
         videoDs: _videoDs,
-        onMessage: (msg) => _showSuccess(msg),
-        onError: (msg) => _showError(msg),
       ),
-    );
+    ));
+
+    // Refresh after returning — publish status or content may have changed
+    AppCache.invalidate('instructor_courses');
+    await _loadCourses();
   }
 
   void _showSuccess(String msg) {
@@ -295,7 +304,7 @@ class _LecturerCourseManagementScreenState
           _buildHeader(published: published, drafts: drafts),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: _kNavy))
+                ? const CourseListSkeleton(count: 3)
                 : _error != null
                     ? _buildError()
                     : RefreshIndicator(
@@ -996,18 +1005,16 @@ class _CourseFormSheetState extends State<_CourseFormSheet> {
       );
       return;
     }
-    final price = _isFree ? 0.0 : (double.tryParse(_priceCtrl.text.trim()) ?? 0.0);
     final thumb = _thumbnailCtrl.text.trim();
     final data = <String, dynamic>{
       'title': _titleCtrl.text.trim(),
       'description': _descCtrl.text.trim(),
       'categoryId': _selectedCategoryId,
       'level': _levelApiValues[_selectedLevel] ?? _selectedLevel.toUpperCase(),
-      'language': 'en',
-      'price': price,
-      'currency': 'USD',
       'requirements': _requirements,
       'objectives': _objectives,
+      'price': _isFree ? 0 : (double.tryParse(_priceCtrl.text.trim()) ?? 0),
+      if (!_isFree) 'currency': 'USD',
       if (thumb.isNotEmpty) 'thumbnailUrl': thumb,
     };
     Navigator.of(context).pop(data);
@@ -1586,9 +1593,8 @@ class _FormField extends StatelessWidget {
   final String hint;
   final IconData icon;
   final int maxLines;
-  final TextInputType? keyboardType;
   final String? Function(String?)? validator;
-  const _FormField({required this.controller, required this.label, required this.hint, required this.icon, this.maxLines = 1, this.keyboardType, this.validator});
+  const _FormField({required this.controller, required this.label, required this.hint, required this.icon, this.maxLines = 1, this.validator});
 
   @override
   Widget build(BuildContext context) {
@@ -1600,7 +1606,6 @@ class _FormField extends StatelessWidget {
         TextFormField(
           controller: controller,
           maxLines: maxLines,
-          keyboardType: keyboardType,
           validator: validator,
           style: const TextStyle(fontSize: 14, color: Color(0xFF1A237E)),
           decoration: InputDecoration(
@@ -1621,352 +1626,984 @@ class _FormField extends StatelessWidget {
   }
 }
 
-// ── Content Management Sheet ──────────────────────────────────────────────────
+// ── Course Content Screen ────────────────────────────────────────────────────
 
-class _ContentMenuSheet extends StatelessWidget {
+class CourseContentScreen extends StatefulWidget {
   final String courseTitle;
   final String courseId;
   final String token;
   final LessonRemoteDataSource lessonDs;
   final VideoProcessingRemoteDataSource videoDs;
-  final void Function(String) onMessage;
-  final void Function(String) onError;
 
-  const _ContentMenuSheet({
+  const CourseContentScreen({
+    super.key,
     required this.courseTitle,
     required this.courseId,
     required this.token,
     required this.lessonDs,
     required this.videoDs,
-    required this.onMessage,
-    required this.onError,
+  });
+
+  @override
+  State<CourseContentScreen> createState() => _CourseContentScreenState();
+}
+
+class _CourseContentScreenState extends State<CourseContentScreen> {
+  bool _isLoading = true;
+  String? _error;
+  List<Map<String, dynamic>> _sections = [];
+
+  // Session cache so video status survives _load() calls when the backend
+  // doesn't populate videoStatus in the sections response.
+  static final Map<String, String> _vsCache = {};  // lessonId → videoStatus
+  static final Map<String, String> _viCache = {};  // lessonId → videoId
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  // Derive a canonical videoStatus string from whatever the backend sends.
+  String _normVideoStatus(Map<String, dynamic> l) {
+    // Primary: videos[] array — take first element's status
+    final videos = l['videos'];
+    if (videos is List && videos.isNotEmpty) {
+      final first = videos[0];
+      if (first is Map) {
+        final s = (first['status'] ?? '').toString().trim().toUpperCase();
+        if (s.isNotEmpty) return s;
+      }
+    }
+
+    // Legacy: direct videoStatus field
+    final direct = (l['videoStatus'] ?? l['video_status'] ?? '').toString().trim().toUpperCase();
+    if (direct.isNotEmpty) return direct;
+
+    // Legacy: nested video object
+    final video = l['video'];
+    if (video is Map) {
+      final s = (video['status'] ?? '').toString().trim().toUpperCase();
+      if (s.isNotEmpty) return s;
+      final url = (video['url'] ?? video['streamUrl'] ?? video['videoUrl'] ?? '').toString();
+      if (url.isNotEmpty) return 'READY';
+    }
+
+    // Legacy: flat videoUrl
+    final url = (l['videoUrl'] ?? l['streamUrl'] ?? l['video_url'] ?? '').toString();
+    if (url.isNotEmpty) return 'READY';
+
+    if (l['hasVideo'] == true || l['has_video'] == true) return 'READY';
+
+    return '';
+  }
+
+  String _normVideoId(Map<String, dynamic> l) {
+    // Primary: videos[] array
+    final videos = l['videos'];
+    if (videos is List && videos.isNotEmpty) {
+      final first = videos[0];
+      if (first is Map) {
+        final id = (first['id'] ?? first['videoId'] ?? '').toString();
+        if (id.isNotEmpty) return id;
+      }
+    }
+
+    // Legacy
+    final direct = (l['videoId'] ?? l['video_id'] ?? '').toString();
+    if (direct.isNotEmpty) return direct;
+    final video = l['video'];
+    if (video is Map) return (video['id'] ?? video['videoId'] ?? '').toString();
+    return '';
+  }
+
+  Map<String, dynamic> _normLesson(Map<String, dynamic> l) {
+    final lessonId = (l['id'] ?? l['_id'] ?? l['lessonId'] ?? '').toString();
+    var status = _normVideoStatus(l);
+    var videoId = _normVideoId(l);
+
+    // Fall back to session cache when backend returns empty status
+    if (status.isEmpty && lessonId.isNotEmpty) status = _vsCache[lessonId] ?? '';
+    if (videoId.isEmpty && lessonId.isNotEmpty) videoId = _viCache[lessonId] ?? '';
+
+    return {
+      ...l,
+      'videoStatus': status,
+      if (videoId.isNotEmpty) 'videoId': videoId,
+    };
+  }
+
+  Map<String, dynamic> _normSection(Map<String, dynamic> s) {
+    final rawLessons = s['lessons'];
+    if (rawLessons is! List) return s;
+    return {
+      ...s,
+      'lessons': rawLessons
+          .whereType<Map>()
+          .map((l) => _normLesson(Map<String, dynamic>.from(l)))
+          .toList(),
+    };
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { _isLoading = _sections.isEmpty; _error = null; });
+
+    // ── 1. Try dedicated sections endpoint ───────────────────────────────────
+    try {
+      // GET /lessons/sections/{courseId}  — courseId is a path segment
+      final uri = Uri.parse(
+          '${ApiConstants.baseUrl}${ApiConstants.lessons}/sections/${widget.courseId}');
+      final r = await http.get(uri, headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${widget.token}',
+      }).timeout(const Duration(seconds: 12));
+      debugPrint('-- loadSections → ${r.statusCode} ${r.body.substring(0, r.body.length.clamp(0, 200))}');
+
+      if (r.statusCode == 200) {
+        final decoded = jsonDecode(r.body);
+        final raw = decoded is List
+            ? decoded
+            : ((decoded is Map
+                    ? (decoded['data'] ?? decoded['sections'] ?? decoded['items'])
+                    : null) ??
+                []) as List;
+        final sections = raw
+            .whereType<Map>()
+            .map((s) => _normSection(Map<String, dynamic>.from(s)))
+            .toList()
+          ..sort((a, b) =>
+              ((a['sortOrder'] ?? a['order'] ?? 0) as num)
+                  .compareTo(((b['sortOrder'] ?? b['order'] ?? 0) as num)));
+        if (sections.isNotEmpty) {
+          debugPrint('-- section[0] lessons sample: '
+              '${(sections[0]['lessons'] as List?)?.take(1).toList()}');
+        }
+        if (!mounted) return;
+        setState(() { _sections = sections; _isLoading = false; });
+        return;
+      }
+      // non-200: fall through to lessons fallback
+    } catch (e) {
+      debugPrint('-- loadSections error: $e');
+      // network error on sections endpoint — try lessons fallback
+    }
+
+    // ── 2. Lessons fallback: group flat lessons by section ───────────────────
+    try {
+      final r = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.lessons}'
+            '?courseId=${widget.courseId}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      ).timeout(const Duration(seconds: 12));
+      debugPrint('-- loadLessons → ${r.statusCode}');
+
+      if (!mounted) return;
+
+      if (r.statusCode != 200) {
+        // 404 or any other code = treat as empty course (not an error)
+        setState(() { _sections = []; _isLoading = false; });
+        return;
+      }
+
+      final decoded = jsonDecode(r.body);
+      final raw = decoded is List
+          ? decoded
+          : ((decoded is Map
+                  ? (decoded['data'] ?? decoded['lessons'] ?? decoded['items'])
+                  : null) ??
+              []) as List;
+
+      if (raw.isEmpty) {
+        setState(() { _sections = []; _isLoading = false; });
+        return;
+      }
+
+      final ordered = <String>[];
+      final grouped = <String, Map<String, dynamic>>{};
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final lesson = _normLesson(Map<String, dynamic>.from(item));
+        final sec = lesson['section'];
+        final sid = (lesson['sectionId'] ??
+                (sec is Map ? sec['id'] : null) ??
+                (sec is String ? sec : null) ??
+                '_none')
+            .toString();
+        final stitle = (lesson['sectionTitle'] ??
+                (sec is Map ? sec['title'] : null) ??
+                (sid == '_none' ? 'Lessons' : 'Section'))
+            .toString();
+        final sorder =
+            ((lesson['sectionOrder'] ?? (sec is Map ? sec['order'] : null) ?? ordered.length) as num);
+        if (!grouped.containsKey(sid)) {
+          ordered.add(sid);
+          grouped[sid] = {'id': sid, 'title': stitle, 'sortOrder': sorder, 'lessons': <Map<String, dynamic>>[]};
+        }
+        (grouped[sid]!['lessons'] as List<Map<String, dynamic>>).add(lesson);
+      }
+      final sections = ordered.map((k) => grouped[k]!).toList()
+        ..sort((a, b) =>
+            ((a['sortOrder'] ?? 0) as num)
+                .compareTo(((b['sortOrder'] ?? 0) as num)));
+      setState(() { _sections = sections; _isLoading = false; });
+    } catch (e) {
+      if (!mounted) return;
+      // Network failure on BOTH endpoints — show error only if we have nothing
+      if (_sections.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _error = 'Could not connect to server. Check your connection.';
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showSuccess(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        const Icon(Icons.check_circle, color: Colors.white, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(msg)),
+      ]),
+      backgroundColor: Colors.green[700],
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.error_outline, color: Colors.white, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(msg, maxLines: 4)),
+      ]),
+      backgroundColor: Colors.red[700],
+      duration: const Duration(seconds: 6),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
+  // ── Optimistic state helpers ─────────────────────────────────────────────────
+
+  static String _id(Map<String, dynamic> m) =>
+      (m['id'] ?? m['_id'] ?? m['sectionId'] ?? m['lessonId'] ?? '').toString();
+
+  void _applyAddSection(Map<String, dynamic> res, String fallbackTitle, int fallbackOrder) {
+    final s = <String, dynamic>{
+      'id': _id(res).isNotEmpty ? _id(res) : '_tmp_${DateTime.now().millisecondsSinceEpoch}',
+      'title': res['title'] ?? fallbackTitle,
+      'sortOrder': res['sortOrder'] ?? res['order'] ?? fallbackOrder,
+      'lessons': <Map<String, dynamic>>[],
+    };
+    setState(() {
+      _sections = [..._sections, s]
+        ..sort((a, b) =>
+            ((a['sortOrder'] ?? a['order'] ?? 0) as num)
+                .compareTo(((b['sortOrder'] ?? b['order'] ?? 0) as num)));
+    });
+  }
+
+  void _applyUpdateSection(String id, Map<String, dynamic> fields) {
+    setState(() {
+      _sections = _sections.map((s) {
+        if (_id(s) == id) return {...s, ...fields};
+        return s;
+      }).toList();
+    });
+  }
+
+  void _applyDeleteSection(String id) {
+    setState(() => _sections = _sections.where((s) => _id(s) != id).toList());
+  }
+
+  void _applyAddLesson(String sectionId, Map<String, dynamic> res, String fallbackTitle) {
+    final newId = _id(res).isNotEmpty ? _id(res) : '_tmp_${DateTime.now().millisecondsSinceEpoch}';
+    final l = <String, dynamic>{
+      'id': newId,
+      'title': res['title'] ?? fallbackTitle,
+      'videoStatus': res['videoStatus'] ?? '',
+      'content': res['content'] ?? '',
+    };
+    setState(() {
+      _sections = _sections.map((s) {
+        if (_id(s) != sectionId) return s;
+        final lessons = List<Map<String, dynamic>>.from(
+            (s['lessons'] as List? ?? []));
+        return {...s, 'lessons': [...lessons, l]};
+      }).toList();
+    });
+  }
+
+  void _applyUpdateLesson(String lessonId, Map<String, dynamic> fields) {
+    // Persist video status / id in the session cache so _load() can restore
+    // them even when the backend returns empty videoStatus in sections.
+    final vs = fields['videoStatus']?.toString();
+    final vi = fields['videoId']?.toString();
+    if (vs != null && vs.isNotEmpty) _vsCache[lessonId] = vs;
+    if (vi != null && vi.isNotEmpty) _viCache[lessonId] = vi;
+
+    setState(() {
+      _sections = _sections.map((s) {
+        final lessons = (s['lessons'] as List? ?? [])
+            .cast<Map<String, dynamic>>();
+        if (!lessons.any((l) => _id(l) == lessonId)) return s;
+        return {
+          ...s,
+          'lessons': lessons.map((l) {
+            if (_id(l) == lessonId) return {...l, ...fields};
+            return l;
+          }).toList(),
+        };
+      }).toList();
+    });
+  }
+
+  void _applyDeleteLesson(String lessonId) {
+    setState(() {
+      _sections = _sections.map((s) {
+        final lessons = (s['lessons'] as List? ?? [])
+            .cast<Map<String, dynamic>>();
+        if (!lessons.any((l) => _id(l) == lessonId)) return s;
+        return {
+          ...s,
+          'lessons': lessons.where((l) => _id(l) != lessonId).toList(),
+        };
+      }).toList();
+    });
+  }
+
+  // ── Section CRUD ─────────────────────────────────────────────────────────────
+
+  Future<void> _addSection() async {
+    final titleCtrl = TextEditingController();
+    final orderCtrl = TextEditingController(text: '${_sections.length + 1}');
+    final ok = await _showFieldDialog(
+      title: 'Add Section',
+      icon: Icons.add_box_outlined,
+      color: _kBlue,
+      fields: [
+        _DialogField('Section Title', Icons.title_rounded, titleCtrl),
+        _DialogField('Order', Icons.sort_rounded, orderCtrl, isNumber: true),
+      ],
+    );
+    if (ok != true) return;
+    final t = titleCtrl.text.trim();
+    if (t.isEmpty) return;
+    final order = int.tryParse(orderCtrl.text.trim()) ?? (_sections.length + 1);
+    try {
+      final res = await widget.lessonDs.addSection(
+          widget.courseId, {'title': t, 'order': order}, widget.token);
+      _applyAddSection(res, t, order);
+      _showSuccess('Section "$t" added!');
+    } catch (e) {
+      _showError('Add section failed: ${e.toString().replaceFirst('Exception: ', '')}');
+    }
+  }
+
+  Future<void> _editSection(Map<String, dynamic> section) async {
+    final id = _id(section);
+    if (id.isEmpty) return;
+    final titleCtrl = TextEditingController(text: (section['title'] ?? '').toString());
+    final orderCtrl = TextEditingController(
+        text: (section['sortOrder'] ?? section['order'] ?? '').toString());
+    final ok = await _showFieldDialog(
+      title: 'Edit Section',
+      icon: Icons.edit_note_outlined,
+      color: Colors.orange[700]!,
+      fields: [
+        _DialogField('Title', Icons.title_rounded, titleCtrl),
+        _DialogField('Order', Icons.sort_rounded, orderCtrl, isNumber: true),
+      ],
+    );
+    if (ok != true) return;
+    final t = titleCtrl.text.trim();
+    if (t.isEmpty) return;
+    final body = <String, dynamic>{'title': t};
+    final o = int.tryParse(orderCtrl.text.trim());
+    if (o != null) body['sortOrder'] = o;
+    try {
+      await widget.lessonDs.updateSection(widget.courseId, id, body, widget.token);
+      _applyUpdateSection(id, {'title': t, if (o != null) 'sortOrder': o});
+      _showSuccess('Section updated!');
+    } catch (e) {
+      _showError('Update failed: ${e.toString().replaceFirst('Exception: ', '')}');
+    }
+  }
+
+  Future<void> _deleteSection(Map<String, dynamic> section) async {
+    final id = _id(section);
+    final title = (section['title'] ?? 'this section').toString();
+    if (id.isEmpty) return;
+    final ok = await _confirmDelete('"$title" and all its lessons');
+    if (ok != true) return;
+    try {
+      await widget.lessonDs.deleteSection(widget.courseId, id, widget.token);
+      _applyDeleteSection(id);
+      _showSuccess('Section deleted.');
+    } catch (e) {
+      _showError('Delete failed: ${e.toString().replaceFirst('Exception: ', '')}');
+    }
+  }
+
+  // ── Lesson CRUD ──────────────────────────────────────────────────────────────
+
+  Future<void> _addLesson(Map<String, dynamic> section) async {
+    final sectionId = _id(section);
+    if (sectionId.isEmpty) return;
+    final titleCtrl = TextEditingController();
+    final contentCtrl = TextEditingController();
+    final ok = await _showFieldDialog(
+      title: 'Add Lesson',
+      icon: Icons.playlist_add_outlined,
+      color: Colors.green[700]!,
+      fields: [
+        _DialogField('Lesson Title', Icons.title_rounded, titleCtrl),
+        _DialogField('Description (optional)', Icons.notes_rounded, contentCtrl, maxLines: 3),
+      ],
+    );
+    if (ok != true) return;
+    final t = titleCtrl.text.trim();
+    if (t.isEmpty) return;
+    final lessons = (section['lessons'] as List? ?? []);
+    final body = <String, dynamic>{
+      'title': t,
+      'sortOrder': lessons.length + 1,
+    };
+    final c = contentCtrl.text.trim();
+    if (c.isNotEmpty) body['content'] = c;
+    try {
+      final res = await widget.lessonDs.addLesson(sectionId, body, widget.token);
+      _applyAddLesson(sectionId, res, t);
+      _showSuccess('Lesson "$t" added! Use the ⋮ menu to upload a video.');
+    } catch (e) {
+      _showError('Add lesson failed: ${e.toString().replaceFirst('Exception: ', '')}');
+    }
+  }
+
+  Future<void> _editLesson(Map<String, dynamic> lesson) async {
+    final id = _id(lesson);
+    if (id.isEmpty) return;
+    final titleCtrl = TextEditingController(text: (lesson['title'] ?? '').toString());
+    final contentCtrl = TextEditingController(
+        text: (lesson['content'] ?? lesson['description'] ?? '').toString());
+    final ok = await _showFieldDialog(
+      title: 'Edit Lesson',
+      icon: Icons.edit_outlined,
+      color: Colors.teal[600]!,
+      fields: [
+        _DialogField('Title', Icons.title_rounded, titleCtrl),
+        _DialogField('Description (optional)', Icons.notes_rounded, contentCtrl, maxLines: 3),
+      ],
+    );
+    if (ok != true) return;
+    final t = titleCtrl.text.trim();
+    if (t.isEmpty) return;
+    final body = <String, dynamic>{'title': t};
+    final c = contentCtrl.text.trim();
+    if (c.isNotEmpty) body['content'] = c;
+    try {
+      await widget.lessonDs.updateLesson(id, body, widget.token);
+      _applyUpdateLesson(id, {'title': t, if (c.isNotEmpty) 'content': c});
+      _showSuccess('Lesson updated!');
+    } catch (e) {
+      _showError('Update failed: ${e.toString().replaceFirst('Exception: ', '')}');
+    }
+  }
+
+  Future<void> _deleteLesson(Map<String, dynamic> lesson) async {
+    final id = _id(lesson);
+    final title = (lesson['title'] ?? 'this lesson').toString();
+    if (id.isEmpty) return;
+    final ok = await _confirmDelete('"$title"');
+    if (ok != true) return;
+    try {
+      await widget.lessonDs.deleteLesson(id, widget.token);
+      _applyDeleteLesson(id);
+      _showSuccess('Lesson deleted.');
+    } catch (e) {
+      _showError('Delete failed: ${e.toString().replaceFirst('Exception: ', '')}');
+    }
+  }
+
+  Future<void> _uploadVideo(Map<String, dynamic> lesson) async {
+    final id = _id(lesson);
+    if (id.isEmpty) return;
+    final fileResult =
+        await FilePicker.pickFiles(type: FileType.video, allowMultiple: false);
+    if (fileResult == null || fileResult.files.single.path == null) return;
+    if (!mounted) return;
+    final filePath = fileResult.files.single.path!;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _UploadingDialog(),
+    );
+    _applyUpdateLesson(id, {'videoStatus': 'UPLOADED'});
+
+    try {
+      // Step 1: get presigned upload URL + videoId from backend
+      final initRes = await widget.videoDs.initiateUpload(id, widget.token, filePath);
+      final uploadUrl = (initRes['uploadUrl'] ?? '').toString();
+      final videoId = (initRes['videoId'] ?? initRes['id'] ?? '').toString();
+      if (uploadUrl.isEmpty || videoId.isEmpty) {
+        throw Exception('Invalid response from server (missing uploadUrl or videoId)');
+      }
+
+      // Step 2: PUT raw bytes directly to MinIO (no auth header)
+      await widget.videoDs.uploadToStorage(uploadUrl, filePath);
+
+      // Step 3: notify backend to start processing
+      await widget.videoDs.completeUpload(videoId, widget.token);
+
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+
+      // Cache immediately so _load() always shows correct status if user navigates away
+      _applyUpdateLesson(id, {'videoStatus': 'PROCESSING', 'videoId': videoId});
+
+      if (mounted) {
+        final result = await showDialog<Map?>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _VideoProcessingDialog(videoId: videoId, token: widget.token),
+        );
+        final status = result?['status']?.toString();
+        final thumb = result?['thumbnailUrl']?.toString();
+        if (status == 'READY') {
+          _applyUpdateLesson(id, {
+            'videoStatus': 'READY',
+            'videoId': videoId,
+            if (thumb != null && thumb.isNotEmpty) 'thumbnailUrl': thumb,
+          });
+          _showSuccess('Video is ready! Students can now watch this lesson.');
+        } else if (status == 'PENDING_REVIEW') {
+          _applyUpdateLesson(id, {
+            'videoStatus': 'PENDING_REVIEW',
+            'videoId': videoId,
+            if (thumb != null && thumb.isNotEmpty) 'thumbnailUrl': thumb,
+          });
+          _showSuccess('Video submitted for admin review. It will be available once approved.');
+        } else if (status == 'FAILED') {
+          _applyUpdateLesson(id, {'videoStatus': 'FAILED', 'videoId': videoId});
+          _showError('Video processing failed. Please try uploading again.');
+        } else {
+          // null = user dismissed dialog while still processing
+          _applyUpdateLesson(id, {'videoStatus': 'PROCESSING', 'videoId': videoId});
+          _showSuccess('Processing continues in the background. Use "Check Status" on the lesson to see when it\'s ready.');
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _applyUpdateLesson(id, {'videoStatus': ''});
+      _showError('Upload failed: ${e.toString().replaceFirst('ApiException: ', '')}');
+    }
+  }
+
+  Future<void> _checkVideoStatus(Map<String, dynamic> lesson) async {
+    final id = _id(lesson);
+    final videoId = (lesson['videoId'] ?? '').toString();
+    if (videoId.isEmpty) {
+      _showError('No video ID — please re-upload the video.');
+      return;
+    }
+    if (!mounted) return;
+    final result = await showDialog<Map?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _VideoProcessingDialog(videoId: videoId, token: widget.token),
+    );
+    final status = result?['status']?.toString();
+    final thumb = result?['thumbnailUrl']?.toString();
+    if (status == 'READY') {
+      _applyUpdateLesson(id, {
+        'videoStatus': 'READY',
+        if (thumb != null && thumb.isNotEmpty) 'thumbnailUrl': thumb,
+      });
+      _showSuccess('Video is ready! Students can now watch this lesson.');
+    } else if (status == 'PENDING_REVIEW') {
+      _applyUpdateLesson(id, {
+        'videoStatus': 'PENDING_REVIEW',
+        if (thumb != null && thumb.isNotEmpty) 'thumbnailUrl': thumb,
+      });
+      _showSuccess('Awaiting admin approval.');
+    } else if (status == 'FAILED') {
+      _applyUpdateLesson(id, {'videoStatus': 'FAILED'});
+      _showError('Video processing failed. Please re-upload.');
+    } else {
+      _applyUpdateLesson(id, {'videoStatus': 'PROCESSING'});
+    }
+  }
+
+  Future<void> _manageQuiz(Map<String, dynamic> lesson) async {
+    final id = _id(lesson);
+    final title = (lesson['title'] ?? 'Lesson').toString();
+    if (id.isEmpty) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => InstructorQuizScreen(lessonId: id, lessonTitle: title),
+    ));
+  }
+
+  // ── Shared dialogs ───────────────────────────────────────────────────────────
+
+  Future<bool?> _confirmDelete(String what) => showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Delete?', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Text('$what will be permanently deleted.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[600],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10))),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+
+  Future<bool?> _showFieldDialog({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<_DialogField> fields,
+  }) =>
+      showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 10),
+            Text(title,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 16, color: _kNavy)),
+          ]),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: fields
+                  .map((f) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: TextField(
+                          controller: f.controller,
+                          keyboardType: f.isNumber
+                              ? TextInputType.number
+                              : TextInputType.multiline,
+                          maxLines: f.maxLines,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: InputDecoration(
+                            labelText: f.label,
+                            prefixIcon: Icon(f.icon, size: 18, color: _kBlue),
+                            filled: true,
+                            fillColor: const Color(0xFFF0F4FF),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none),
+                            focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: _kNavy, width: 1.5)),
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Colors.black45))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _kNavy,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10))),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+
+  // ── Build ────────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F2FF),
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Course Content',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(widget.courseTitle,
+                style: const TextStyle(fontSize: 11, color: Colors.white70),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ),
+        backgroundColor: _kNavy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.menu_book_rounded),
+            onPressed: _load,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addSection,
+        backgroundColor: _kNavy,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add Section', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      body: _isLoading
+          ? const LessonListSkeleton()
+          : _error != null
+              ? _buildError()
+              : _sections.isEmpty
+                  ? _buildEmpty()
+                  : RefreshIndicator(
+                      color: _kNavy,
+                      onRefresh: _load,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+                        itemCount: _sections.length,
+                        itemBuilder: (_, i) => _SectionTile(
+                          section: _sections[i],
+                          sectionIndex: i,
+                          onEditSection: () => _editSection(_sections[i]),
+                          onDeleteSection: () => _deleteSection(_sections[i]),
+                          onAddLesson: () => _addLesson(_sections[i]),
+                          onEditLesson: _editLesson,
+                          onDeleteLesson: _deleteLesson,
+                          onUploadVideo: _uploadVideo,
+                          onCheckStatus: _checkVideoStatus,
+                          onManageQuiz: _manageQuiz,
+                        ),
+                      ),
+                    ),
+    );
+  }
+
+  Widget _buildError() => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration:
+                    BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
+                child: Icon(Icons.wifi_off_rounded, size: 48, color: Colors.red.shade300),
+              ),
+              const SizedBox(height: 20),
+              const Text('Failed to load content',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kNavy)),
+              const SizedBox(height: 8),
+              Text(_error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black45, height: 1.5)),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try Again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kNavy,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildEmpty() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 32, 20, 120),
+      children: [
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+                color: _kNavy.withValues(alpha: 0.08), shape: BoxShape.circle),
+            child: Icon(Icons.auto_stories_outlined,
+                size: 56, color: _kNavy.withValues(alpha: 0.45)),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text('Build your course curriculum',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: _kNavy)),
+        const SizedBox(height: 8),
+        Text(
+          'Your course has no content yet.\nFollow these steps to add it:',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 14, height: 1.5),
+        ),
+        const SizedBox(height: 28),
+        // Step-by-step guide
+        _StepCard(
+          step: 1,
+          icon: Icons.add_box_outlined,
+          color: _kBlue,
+          title: 'Add a Section',
+          body: 'Sections group related lessons — e.g. "Introduction", "Chapter 1". '
+              'Tap the blue "Add Section" button at the bottom of this screen.',
+        ),
+        _StepCard(
+          step: 2,
+          icon: Icons.playlist_add_outlined,
+          color: Colors.green[700]!,
+          title: 'Add Lessons to each Section',
+          body: 'After adding a section, tap "Add Lesson" inside it. '
+              'Give the lesson a title and optional description.',
+        ),
+        _StepCard(
+          step: 3,
+          icon: Icons.video_file_outlined,
+          color: Colors.purple[700]!,
+          title: 'Upload a Video',
+          body: 'Tap the ⋮ menu on any lesson and choose "Upload Video". '
+              'Pick a video file — the app will upload and process it automatically.',
+        ),
+        _StepCard(
+          step: 4,
+          icon: Icons.quiz_outlined,
+          color: Colors.indigo[700]!,
+          title: 'Add a Quiz (optional)',
+          body: 'Use the ⋮ menu → "Manage Quiz" to add questions and test student knowledge.',
+        ),
+        const SizedBox(height: 24),
+        // CTA button
+        GestureDetector(
+          onTap: _addSection,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                  colors: [Color(0xFF0D1B6E), Color(0xFF1565C0)]),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                    color: _kNavy.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5))
+              ],
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_rounded, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Add First Section',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StepCard extends StatelessWidget {
+  final int step;
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String body;
+  const _StepCard({
+    required this.step,
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.body,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 3)),
+        ],
       ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Center(
+              child: Text('$step',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
             ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F4FF),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.folder_open_rounded, color: _kNavy, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Manage Content',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: _kNavy)),
-                        Text(courseTitle,
-                            style: const TextStyle(
-                                color: Colors.black45, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            _ContentItem(
-              icon: Icons.add_box_outlined,
-              label: 'Add Section',
-              color: _kBlue,
-              onTap: () async {
-                Navigator.pop(context);
-                await _addSection(context);
-              },
-            ),
-            _ContentItem(
-              icon: Icons.playlist_add_outlined,
-              label: 'Add Lesson',
-              color: Colors.green[700]!,
-              onTap: () async {
-                Navigator.pop(context);
-                await _addLesson(context);
-              },
-            ),
-            _ContentItem(
-              icon: Icons.video_file_outlined,
-              label: 'Upload Lesson Video',
-              color: Colors.purple[700]!,
-              onTap: () async {
-                Navigator.pop(context);
-                await _uploadVideo(context);
-              },
-            ),
-            _ContentItem(
-              icon: Icons.edit_note_outlined,
-              label: 'Update Section',
-              color: Colors.orange[700]!,
-              onTap: () async {
-                Navigator.pop(context);
-                await _updateSection(context);
-              },
-            ),
-            _ContentItem(
-              icon: Icons.edit_outlined,
-              label: 'Update Lesson',
-              color: Colors.teal[600]!,
-              onTap: () async {
-                Navigator.pop(context);
-                await _updateLesson(context);
-              },
-            ),
-            _ContentItem(
-              icon: Icons.delete_outline_rounded,
-              label: 'Delete Section',
-              color: Colors.red[600]!,
-              onTap: () async {
-                Navigator.pop(context);
-                await _deleteSection(context);
-              },
-            ),
-            _ContentItem(
-              icon: Icons.delete_forever_outlined,
-              label: 'Delete Lesson',
-              color: Colors.red[800]!,
-              onTap: () async {
-                Navigator.pop(context);
-                await _deleteLesson(context);
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
-         ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _addSection(BuildContext ctx) async {
-    final result = await _showSimpleForm(ctx, 'Add Section', [
-      _FI('Section Title', Icons.title_rounded),
-      _FI('Order (number)', Icons.sort_rounded, isNumber: true),
-    ]);
-    if (result == null) return;
-    try {
-      await lessonDs.addSection(courseId, result, token);
-      onMessage('Section added!');
-    } catch (e) {
-      onError('Add section failed: $e');
-    }
-  }
-
-  Future<void> _updateSection(BuildContext ctx) async {
-    final result = await _showSimpleForm(ctx, 'Update Section', [
-      _FI('Section ID', Icons.tag_rounded),
-      _FI('New Title', Icons.title_rounded),
-    ]);
-    if (result == null) return;
-    final sectionId = result.remove('sectionId')?.toString() ??
-        result.remove('Section ID')?.toString() ?? '';
-    if (sectionId.isEmpty) return;
-    try {
-      await lessonDs.updateSection(courseId, sectionId, result, token);
-      onMessage('Section updated!');
-    } catch (e) {
-      onError('Update section failed: $e');
-    }
-  }
-
-  Future<void> _deleteSection(BuildContext ctx) async {
-    final result = await _showSimpleForm(ctx, 'Delete Section', [
-      _FI('Section ID', Icons.tag_rounded),
-    ]);
-    if (result == null) return;
-    final sectionId = result['sectionId']?.toString() ??
-        result['Section ID']?.toString() ?? '';
-    if (sectionId.isEmpty) return;
-    try {
-      await lessonDs.deleteSection(courseId, sectionId, token);
-      onMessage('Section deleted.');
-    } catch (e) {
-      onError('Delete section failed: $e');
-    }
-  }
-
-  Future<void> _addLesson(BuildContext ctx) async {
-    final result = await _showSimpleForm(ctx, 'Add Lesson', [
-      _FI('Section ID', Icons.tag_rounded),
-      _FI('Lesson Title', Icons.title_rounded),
-      _FI('Content', Icons.notes_rounded),
-    ]);
-    if (result == null) return;
-    final sectionId = result.remove('sectionId')?.toString() ??
-        result.remove('Section ID')?.toString() ?? '';
-    if (sectionId.isEmpty) return;
-    try {
-      await lessonDs.addLesson(sectionId, result, token);
-      onMessage('Lesson added!');
-    } catch (e) {
-      onError('Add lesson failed: $e');
-    }
-  }
-
-  Future<void> _updateLesson(BuildContext ctx) async {
-    final result = await _showSimpleForm(ctx, 'Update Lesson', [
-      _FI('Lesson ID', Icons.tag_rounded),
-      _FI('New Title', Icons.title_rounded),
-      _FI('Content', Icons.notes_rounded),
-    ]);
-    if (result == null) return;
-    final lessonId = result.remove('lessonId')?.toString() ??
-        result.remove('Lesson ID')?.toString() ?? '';
-    if (lessonId.isEmpty) return;
-    try {
-      await lessonDs.updateLesson(lessonId, result, token);
-      onMessage('Lesson updated!');
-    } catch (e) {
-      onError('Update lesson failed: $e');
-    }
-  }
-
-  Future<void> _deleteLesson(BuildContext ctx) async {
-    final result = await _showSimpleForm(ctx, 'Delete Lesson', [
-      _FI('Lesson ID', Icons.tag_rounded),
-    ]);
-    if (result == null) return;
-    final lessonId = result['lessonId']?.toString() ??
-        result['Lesson ID']?.toString() ?? '';
-    if (lessonId.isEmpty) return;
-    try {
-      await lessonDs.deleteLesson(lessonId, token);
-      onMessage('Lesson deleted.');
-    } catch (e) {
-      onError('Delete lesson failed: $e');
-    }
-  }
-
-  Future<void> _uploadVideo(BuildContext ctx) async {
-    final result = await _showSimpleForm(ctx, 'Upload Video', [
-      _FI('Lesson ID (optional)', Icons.tag_rounded),
-    ]);
-    if (result == null) return;
-    final lessonId = result['lessonId']?.toString() ??
-        result['Lesson ID (optional)']?.toString() ?? '';
-
-    final fileResult = await FilePicker.pickFiles(
-        type: FileType.video, allowMultiple: false);
-    if (fileResult == null || fileResult.files.single.path == null) return;
-
-    try {
-      await videoDs.uploadLessonVideo(
-        fileResult.files.single.path!,
-        token,
-        lessonId: lessonId.isEmpty ? null : lessonId,
-      );
-      onMessage('Video uploaded!');
-    } catch (e) {
-      onError('Upload failed: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>?> _showSimpleForm(
-    BuildContext ctx,
-    String title,
-    List<_FI> fields,
-  ) {
-    final controllers = {for (final f in fields) f.label: TextEditingController()};
-
-    return showDialog<Map<String, dynamic>>(
-      context: ctx,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: _kNavy)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: fields.map((f) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: TextField(
-                  controller: controllers[f.label],
-                  keyboardType: f.isNumber
-                      ? TextInputType.number
-                      : TextInputType.text,
-                  style: const TextStyle(fontSize: 14),
-                  decoration: InputDecoration(
-                    labelText: f.label,
-                    prefixIcon: Icon(f.icon, size: 18, color: _kBlue),
-                    filled: true,
-                    fillColor: const Color(0xFFF0F4FF),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _kNavy, width: 1.5),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.black45)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kNavy,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(icon, size: 16, color: color),
+                  const SizedBox(width: 6),
+                  Text(title,
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: color)),
+                ]),
+                const SizedBox(height: 6),
+                Text(body,
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.blueGrey.shade500,
+                        height: 1.5)),
+              ],
             ),
-            onPressed: () {
-              final result = <String, dynamic>{};
-              for (final f in fields) {
-                final val = controllers[f.label]!.text.trim();
-                if (val.isNotEmpty) {
-                  final camelKey = f.label
-                      .split(' ')
-                      .first
-                      .toLowerCase()
-                      .replaceAll(RegExp(r'\(.*\)'), '')
-                      .trim();
-                  final numeric = num.tryParse(val);
-                  result[camelKey] = numeric ?? val;
-                }
-              }
-              Navigator.pop(dialogCtx, result);
-            },
-            child: const Text('Confirm'),
           ),
         ],
       ),
@@ -1974,40 +2611,505 @@ class _ContentMenuSheet extends StatelessWidget {
   }
 }
 
-class _ContentItem extends StatelessWidget {
-  final IconData icon;
+class _DialogField {
   final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _ContentItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
+  final IconData icon;
+  final TextEditingController controller;
+  final bool isNumber;
+  final int maxLines;
+  const _DialogField(this.label, this.icon, this.controller,
+      {this.isNumber = false, this.maxLines = 1});
+}
+
+// ── Section tile (expandable) ─────────────────────────────────────────────────
+
+class _SectionTile extends StatefulWidget {
+  final Map<String, dynamic> section;
+  final int sectionIndex;
+  final VoidCallback onEditSection;
+  final VoidCallback onDeleteSection;
+  final VoidCallback onAddLesson;
+  final void Function(Map<String, dynamic>) onEditLesson;
+  final void Function(Map<String, dynamic>) onDeleteLesson;
+  final void Function(Map<String, dynamic>) onUploadVideo;
+  final void Function(Map<String, dynamic>) onCheckStatus;
+  final void Function(Map<String, dynamic>) onManageQuiz;
+
+  const _SectionTile({
+    required this.section,
+    required this.sectionIndex,
+    required this.onEditSection,
+    required this.onDeleteSection,
+    required this.onAddLesson,
+    required this.onEditLesson,
+    required this.onDeleteLesson,
+    required this.onUploadVideo,
+    required this.onCheckStatus,
+    required this.onManageQuiz,
   });
 
   @override
+  State<_SectionTile> createState() => _SectionTileState();
+}
+
+class _SectionTileState extends State<_SectionTile> {
+  bool _expanded = true;
+
+  String get _title => (widget.section['title'] ?? 'Untitled Section').toString();
+
+  List<Map<String, dynamic>> get _lessons {
+    final l = widget.section['lessons'];
+    if (l is List) return l.whereType<Map<String, dynamic>>().toList();
+    return [];
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, size: 18, color: color),
+    final lessons = _lessons;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: _kNavy.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4),
+        ],
       ),
-      title: Text(label,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-      trailing: Icon(Icons.chevron_right, color: Colors.grey[400], size: 18),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Column(
+          children: [
+            // ── Section header ─────────────────────────────────────
+            Material(
+              color: const Color(0xFFF0F4FF),
+              child: InkWell(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32, height: 32,
+                        decoration: BoxDecoration(
+                            color: _kNavy, borderRadius: BorderRadius.circular(8)),
+                        child: Center(
+                          child: Text('${widget.sectionIndex + 1}',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_title,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: _kNavy),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            Text(
+                              '${lessons.length} lesson${lessons.length == 1 ? '' : 's'}',
+                              style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade400),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        color: Colors.blueGrey.shade400,
+                        onPressed: widget.onEditSection,
+                        tooltip: 'Edit section',
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                        color: Colors.red.shade300,
+                        onPressed: widget.onDeleteSection,
+                        tooltip: 'Delete section',
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 4),
+                      AnimatedRotation(
+                        turns: _expanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 22, color: Colors.blueGrey.shade400),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // ── Lessons (collapsible) ──────────────────────────────
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: _expanded
+                  ? Column(
+                      key: const ValueKey('expanded'),
+                      children: [
+                        const Divider(height: 1, indent: 14, endIndent: 14),
+                        if (lessons.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 18, horizontal: 20),
+                            child: Text(
+                              'No lessons yet — tap below to add one.',
+                              style: TextStyle(
+                                  color: Colors.blueGrey.shade300, fontSize: 13),
+                            ),
+                          ),
+                        ...lessons.map((l) => _LessonRow(
+                              lesson: l,
+                              onEdit: () => widget.onEditLesson(l),
+                              onDelete: () => widget.onDeleteLesson(l),
+                              onUploadVideo: () => widget.onUploadVideo(l),
+                              onCheckStatus: () => widget.onCheckStatus(l),
+                              onManageQuiz: () => widget.onManageQuiz(l),
+                            )),
+                        // Add lesson button
+                        InkWell(
+                          onTap: widget.onAddLesson,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_circle_outline_rounded,
+                                    size: 17,
+                                    color: _kBlue.withValues(alpha: 0.8)),
+                                const SizedBox(width: 6),
+                                Text('Add Lesson',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: _kBlue.withValues(alpha: 0.8))),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(key: ValueKey('collapsed')),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _FI {
-  final String label;
-  final IconData icon;
-  final bool isNumber;
-  const _FI(this.label, this.icon, {this.isNumber = false});
+// ── Lesson row with popup menu ────────────────────────────────────────────────
+
+class _LessonRow extends StatelessWidget {
+  final Map<String, dynamic> lesson;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onUploadVideo;
+  final VoidCallback onCheckStatus;
+  final VoidCallback onManageQuiz;
+
+  const _LessonRow({
+    required this.lesson,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onUploadVideo,
+    required this.onCheckStatus,
+    required this.onManageQuiz,
+  });
+
+  String get _title => (lesson['title'] ?? 'Untitled').toString();
+  String get _status =>
+      (lesson['videoStatus'] ?? '').toString().toUpperCase();
+
+  Color get _statusColor {
+    switch (_status) {
+      case 'READY':          return Colors.green[700]!;
+      case 'PROCESSING':     return Colors.orange[700]!;
+      case 'UPLOADED':       return Colors.blue[600]!;
+      case 'PENDING_REVIEW': return Colors.purple[600]!;
+      case 'FAILED':         return Colors.red[600]!;
+      default:               return Colors.grey;
+    }
+  }
+
+  IconData get _statusIcon {
+    switch (_status) {
+      case 'READY':          return Icons.play_circle_outline_rounded;
+      case 'PROCESSING':     return Icons.hourglass_top_rounded;
+      case 'UPLOADED':       return Icons.cloud_done_outlined;
+      case 'PENDING_REVIEW': return Icons.pending_outlined;
+      case 'FAILED':         return Icons.error_outline_rounded;
+      default:               return Icons.videocam_off_outlined;
+    }
+  }
+
+  String get _statusLabel {
+    switch (_status) {
+      case 'READY':          return 'Ready';
+      case 'PROCESSING':     return 'Processing…';
+      case 'UPLOADED':       return 'Upload received';
+      case 'PENDING_REVIEW': return 'Awaiting admin approval';
+      case 'FAILED':         return 'Processing failed — tap ⋮ to retry';
+      default:               return 'No video uploaded';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Divider(height: 1, indent: 14, endIndent: 14),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: _statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(_statusIcon, size: 16, color: _statusColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_title,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: _kNavy),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    Text(_statusLabel,
+                        style: TextStyle(fontSize: 11, color: _statusColor)),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert_rounded,
+                    size: 18, color: Colors.grey.shade500),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                onSelected: (v) {
+                  switch (v) {
+                    case 'edit': onEdit(); break;
+                    case 'upload': onUploadVideo(); break;
+                    case 'check': onCheckStatus(); break;
+                    case 'quiz': onManageQuiz(); break;
+                    case 'delete': onDelete(); break;
+                  }
+                },
+                itemBuilder: (_) => [
+                  _item('edit', Icons.edit_outlined, 'Edit Title', Colors.blueGrey.shade700),
+                  if (_status == 'PROCESSING' || _status == 'UPLOADED' || _status == 'PENDING_REVIEW')
+                    _item('check', Icons.refresh_rounded, 'Check Status', Colors.orange[700]!),
+                  _item('upload', Icons.video_file_outlined,
+                      _status == 'FAILED' ? 'Retry Upload' : 'Upload Video',
+                      _status == 'FAILED' ? Colors.red[600]! : Colors.purple[700]!),
+                  _item('quiz', Icons.quiz_outlined, 'Manage Quiz', Colors.indigo[700]!),
+                  _item('delete', Icons.delete_outline_rounded, 'Delete', Colors.red[600]!),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  PopupMenuItem<String> _item(
+      String value, IconData icon, String label, Color color) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 10),
+        Text(label,
+            style: TextStyle(
+                fontSize: 13,
+                color: color,
+                fontWeight: FontWeight.w500)),
+      ]),
+    );
+  }
+}
+
+// ── Upload progress spinner ───────────────────────────────────────────────────
+
+class _UploadingDialog extends StatelessWidget {
+  const _UploadingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AlertDialog(
+      content: Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: _kNavy),
+            SizedBox(width: 20),
+            Expanded(
+              child: Text('Uploading video…',
+                  style: TextStyle(fontSize: 14)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Video processing polling dialog ──────────────────────────────────────────
+
+class _VideoProcessingDialog extends StatefulWidget {
+  final String videoId;
+  final String token;
+
+  const _VideoProcessingDialog({
+    required this.videoId,
+    required this.token,
+  });
+
+  @override
+  State<_VideoProcessingDialog> createState() => _VideoProcessingDialogState();
+}
+
+class _VideoProcessingDialogState extends State<_VideoProcessingDialog> {
+  Timer? _timer;
+  String _status = 'UPLOADED';
+  double _progress = 0;
+  String? _thumbnailUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _poll(); // immediate first check
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _poll());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _poll() async {
+    try {
+      final data = await VideoProcessingRemoteDataSource()
+          .getVideoStatus(widget.videoId, widget.token);
+      if (!mounted) return;
+      final status = (data['status'] ?? 'PROCESSING').toString();
+      final progress = (data['progress'] as num?)?.toDouble() ?? 0;
+      final thumb = (data['thumbnailUrl'] ?? data['thumbnail'] ?? '').toString();
+      setState(() {
+        _status = status;
+        _progress = progress;
+        if (thumb.isNotEmpty) _thumbnailUrl = thumb;
+      });
+      if (status == 'READY' || status == 'PENDING_REVIEW' || status == 'FAILED') {
+        _timer?.cancel();
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (mounted) {
+          Navigator.of(context).pop({'status': status, 'thumbnailUrl': _thumbnailUrl});
+        }
+      }
+    } catch (_) {
+      // keep polling on transient errors
+    }
+  }
+
+  String get _statusLabel {
+    switch (_status) {
+      case 'UPLOADED':
+        return 'Video uploaded, waiting to process…';
+      case 'PROCESSING':
+        return 'Processing video… ${_progress.toStringAsFixed(0)}%';
+      case 'PENDING_REVIEW':
+        return 'Awaiting admin approval…';
+      case 'READY':
+        return 'Video is ready!';
+      case 'FAILED':
+        return 'Processing failed.';
+      default:
+        return 'Processing…';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDone =
+        _status == 'READY' || _status == 'PENDING_REVIEW' || _status == 'FAILED';
+    final isFailed = _status == 'FAILED';
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(
+            isFailed
+                ? Icons.error_outline
+                : isDone
+                    ? Icons.check_circle_outline
+                    : Icons.video_file_outlined,
+            color: isFailed
+                ? Colors.red[700]
+                : isDone
+                    ? Colors.green[700]
+                    : _kNavy,
+          ),
+          const SizedBox(width: 10),
+          const Text('Processing Video',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_statusLabel,
+              style: const TextStyle(fontSize: 13, color: Colors.black54)),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: isDone ? 1.0 : (_status == 'UPLOADED' ? null : _progress / 100),
+              minHeight: 8,
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isFailed ? Colors.red[400]! : _kNavy,
+              ),
+            ),
+          ),
+          if (!isDone) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'You can close this dialog — processing continues in the background.',
+              style: TextStyle(fontSize: 11, color: Colors.black38),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        if (!isDone)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text('Close', style: TextStyle(color: Colors.black45)),
+          ),
+      ],
+    );
+  }
 }

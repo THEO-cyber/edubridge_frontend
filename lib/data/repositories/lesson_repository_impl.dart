@@ -12,15 +12,18 @@ class LessonRepositoryImpl implements LessonRepository {
     String token,
   ) async {
     final data = await remoteDataSource.fetchLessonsForCourse(courseId, token);
-    return data
-        .map(
-          (e) => LessonEntity(
-            id: e['id'],
-            title: e['title'],
-            videoUrl: e['videoUrl'],
-            description: e['description'],
-          ),
-        )
-        .toList();
+    return data.map((e) => _mapLesson(e)).toList();
+  }
+
+  LessonEntity _mapLesson(Map<String, dynamic> e) {
+    return LessonEntity(
+      id: (e['id'] ?? e['_id'] ?? '').toString(),
+      title: (e['title'] ?? '').toString(),
+      videoUrl: (e['videoUrl'] ?? '').toString(),
+      videoId: e['videoId']?.toString(),
+      videoStatus: e['videoStatus']?.toString(),
+      thumbnailUrl: e['thumbnailUrl']?.toString(),
+      description: e['description']?.toString(),
+    );
   }
 }

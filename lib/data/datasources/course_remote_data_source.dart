@@ -173,6 +173,7 @@ class CourseRemoteDataSource {
         body: requestBody,
       );
       debugPrint('------------ STATUS: ${response.statusCode}');
+      debugPrint('------------ RESPONSE: ${response.body}');
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }

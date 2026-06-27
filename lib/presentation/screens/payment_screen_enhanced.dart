@@ -13,11 +13,11 @@ class PaymentScreenEnhanced extends StatefulWidget {
   final double price;
 
   const PaymentScreenEnhanced({
-    Key? key,
+    super.key,
     required this.courseId,
     required this.courseName,
     required this.price,
-  }) : super(key: key);
+  });
 
   @override
   State<PaymentScreenEnhanced> createState() => _PaymentScreenEnhancedState();

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:edubridge/constants/api_constants.dart';
 import 'package:http/http.dart' as http;
 import '../../core/error_handling.dart';
+import 'package:flutter/foundation.dart';
 
 class PaymentRemoteDataSource {
   Future<Map<String, dynamic>> createPaymentIntent(
@@ -64,6 +65,27 @@ class PaymentRemoteDataSource {
     } else {
       throw ApiException('Failed to verify payment', response.statusCode);
     }
+  }
+
+  /// GET /payouts/earnings — instructor earnings data
+  Future<Map<String, dynamic>> fetchEarnings(String token) async {
+    final response = await http
+        .get(
+          Uri.parse(ApiConstants.baseUrl + ApiConstants.payoutsEarnings),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 12));
+    debugPrint('-- fetchEarnings STATUS ${response.statusCode}');
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) return data;
+      return {'transactions': []};
+    }
+    throw ApiException('Failed to fetch earnings (${response.statusCode})',
+        response.statusCode);
   }
 
   /// Returns coupon info: { discountAmount, discountPercentage, finalPrice, ... }

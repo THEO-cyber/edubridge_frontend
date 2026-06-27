@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/cache/app_cache.dart';
 import '../../core/secure_storage.dart';
 import '../../services/notification_service.dart';
 import '../blocs/profile_bloc.dart';
@@ -110,8 +111,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       listener: (context, state) {
         if (state is ProfileUpdateSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profile updated!')),
+            const SnackBar(
+              content: Text('Profile updated!'),
+              backgroundColor: Colors.green,
+            ),
           );
+          // Reload so header + info tiles reflect the new values
+          if (_token != null) {
+            context.read<ProfileBloc>().add(LoadProfileEvent(_token!));
+          }
         } else if (state is ProfileError) {
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text(state.message)));
@@ -181,6 +189,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 expandedHeight: 220,
                 backgroundColor: _kNavy,
                 foregroundColor: Colors.white,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: 'Edit Profile',
+                    onPressed: () =>
+                        _showEditProfileSheet(context, profile, _token!),
+                  ),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
                   background: Container(
                     decoration: const BoxDecoration(
@@ -458,6 +474,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           await NotificationService.unregisterToken();
                           await SecureStorage.deleteAllTokens();
                           await SecureStorage.clearRole();
+                          AppCache.clear();
                           if (!mounted) return;
                           profileBloc.add(ResetProfileEvent());
                           setState(() {
@@ -514,6 +531,106 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
+  }
+
+  Future<void> _showEditProfileSheet(
+    BuildContext context,
+    Map<String, dynamic> profile,
+    String token,
+  ) async {
+    final nameCtrl = TextEditingController(text: _buildDisplayName(profile));
+    final emailCtrl =
+        TextEditingController(text: profile['email']?.toString() ?? '');
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20, 20, 20,
+          MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('Edit Profile',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(sheetCtx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: nameCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: 'Full Name',
+                prefixIcon: const Icon(Icons.person_outline),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                prefixIcon: const Icon(Icons.email_outlined),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () {
+                  final nameTrimmed = nameCtrl.text.trim();
+                  final emailTrimmed = emailCtrl.text.trim();
+                  if (nameTrimmed.isEmpty || emailTrimmed.isEmpty) return;
+                  final parts = nameTrimmed.split(' ');
+                  Navigator.pop(sheetCtx);
+                  context.read<ProfileBloc>().add(UpdateProfileEvent(
+                    {
+                      'name': nameTrimmed,
+                      'firstName': parts.first,
+                      'lastName':
+                          parts.length > 1 ? parts.sublist(1).join(' ') : '',
+                      'email': emailTrimmed,
+                    },
+                    token,
+                  ));
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kNavy,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Save Changes',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    nameCtrl.dispose();
+    emailCtrl.dispose();
   }
 
   String _buildDisplayName(Map<String, dynamic> profile) {

@@ -5,11 +5,12 @@ import 'package:http/http.dart' as http;
 import '../../../constants/api_constants.dart';
 import '../../../core/secure_storage.dart';
 import '../../blocs/auth_bloc.dart';
+import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/two_fa_verification_dialog.dart';
 import '../forgot_password_screen.dart';
 
 class LecturerLoginScreen extends StatefulWidget {
-  const LecturerLoginScreen({Key? key}) : super(key: key);
+  const LecturerLoginScreen({super.key});
 
   @override
   State<LecturerLoginScreen> createState() => _LecturerLoginScreenState();
@@ -464,6 +465,12 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
+
+                        // Google sign-in
+                        const OrDivider(),
+                        const GoogleSignInButton(),
+                        const SizedBox(height: 20),
+
                         Center(
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:edubridge/constants/api_constants.dart';
 import 'package:http/http.dart' as http;
 import '../../core/error_handling.dart';
+import '../../core/http_utils.dart';
 
 class LiveSessionRemoteDataSource {
   // Student endpoints
@@ -28,7 +29,7 @@ class LiveSessionRemoteDataSource {
 
   Future<Map<String, dynamic>> fetchLiveSessionDetail(String sessionId, String token) async {
     final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -81,7 +82,7 @@ class LiveSessionRemoteDataSource {
 
   Future<List<Map<String, dynamic>>> fetchMySessionRequests(String token) async {
     final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessionRequests + '/my-requests'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessionRequests}/my-requests'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -101,7 +102,7 @@ class LiveSessionRemoteDataSource {
   Future<void> leaveLiveSession(String sessionId, String token) async {
     final response = await http.post(
       Uri.parse(
-        ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId/leave',
+        '${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/leave',
       ),
       headers: {
         'Content-Type': 'application/json',
@@ -115,27 +116,46 @@ class LiveSessionRemoteDataSource {
 
   // Lecturer endpoints
   Future<List<Map<String, dynamic>>> fetchMyLiveSessions(String token) async {
-    final url = ApiConstants.baseUrl + ApiConstants.liveSessionMySessions;
-    print('---------- [MySessions] GET $url');
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    print('---------- [MySessions] Status: ${response.statusCode}');
-    print('---------- [MySessions] Response: ${response.body}');
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final list = data is List
-          ? List<Map<String, dynamic>>.from(data)
-          : List<Map<String, dynamic>>.from(
-              data['sessions'] ?? data['data'] ?? []);
-      print('---------- [MySessions] Parsed count: ${list.length}');
-      return list;
-    } else {
+    try {
+      final response = await apiGet(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessionMySessions),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data is List
+            ? List<Map<String, dynamic>>.from(data)
+            : List<Map<String, dynamic>>.from(
+                data['sessions'] ?? data['data'] ?? []);
+        return list;
+      }
       throw ApiException('Failed to fetch instructor sessions', response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(networkErrorMessage(e), 0);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchInstructorRequests(String token) async {
+    try {
+      final response = await apiGet(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessionRequests),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data is List ? data : (data['requests'] ?? data['data'] ?? []);
+        return List<Map<String, dynamic>>.from(list);
+      }
+      return [];
+    } catch (_) {
+      return [];
     }
   }
 
@@ -160,7 +180,7 @@ class LiveSessionRemoteDataSource {
 
   Future<void> scheduleLiveSession(String token, String sessionId, Map<String, dynamic> body) async {
     final response = await http.put(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId/schedule'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/schedule'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -174,7 +194,7 @@ class LiveSessionRemoteDataSource {
 
   Future<List<Map<String, dynamic>>> fetchSessionRequests(String sessionId, String token) async {
     final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId/requests'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/requests'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -193,7 +213,7 @@ class LiveSessionRemoteDataSource {
 
   Future<void> acceptSessionRequest(String requestId, String token, {String? feedback}) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessionRequests + '/$requestId/accept'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessionRequests}/$requestId/accept'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -207,7 +227,7 @@ class LiveSessionRemoteDataSource {
 
   Future<void> rejectSessionRequest(String requestId, String token, String rejectionReason) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessionRequests + '/$requestId/reject'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessionRequests}/$requestId/reject'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -221,7 +241,7 @@ class LiveSessionRemoteDataSource {
 
   Future<void> endLiveSession(String sessionId, String token) async {
     final response = await http.patch(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId/end'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/end'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -329,7 +349,7 @@ class LiveSessionRemoteDataSource {
 
   Future<void> recordAttendance(String sessionId, String token, List<String> attendeeIds) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId/attendance'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/attendance'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -341,26 +361,80 @@ class LiveSessionRemoteDataSource {
     }
   }
 
-  // Analytics endpoints
+  // Analytics assembled from applications + attendance (title/date come from the session entity in the UI)
   Future<Map<String, dynamic>> fetchSessionAnalytics(String sessionId, String token) async {
-    final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId/analytics'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data is Map ? data as Map<String, dynamic> : data['data'] as Map<String, dynamic>;
-    } else {
-      throw ApiException('Failed to fetch session analytics', response.statusCode);
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    final base = ApiConstants.baseUrl + ApiConstants.liveSessions;
+
+    final results = await Future.wait<http.Response>([
+      apiGet(Uri.parse('$base/$sessionId/applications'), headers: headers)
+          .catchError((_) => http.Response('[]', 0)),
+      apiGet(Uri.parse('$base/$sessionId/attendance'), headers: headers)
+          .catchError((_) => http.Response('[]', 0)),
+      apiGet(Uri.parse(ApiConstants.baseUrl + ApiConstants.sessionReviews(sessionId)), headers: headers)
+          .catchError((_) => http.Response('[]', 0)),
+    ]);
+
+    // Applications → request counts
+    // Backend uses "confirmed"/"cancelled" — handle both naming conventions
+    List<dynamic> applications = [];
+    if (results[0].statusCode == 200) {
+      final parsed = jsonDecode(results[0].body);
+      applications = parsed is List ? parsed : (parsed['applications'] ?? parsed['data'] ?? []);
     }
+    final totalRequests = applications.length;
+    final accepted = applications.where((a) {
+      final s = (a['status'] ?? '').toString().toLowerCase();
+      return s == 'accepted' || s == 'confirmed' || s == 'approved';
+    }).length;
+    final rejected = applications.where((a) {
+      final s = (a['status'] ?? '').toString().toLowerCase();
+      return s == 'rejected' || s == 'cancelled' || s == 'denied';
+    }).length;
+
+    // Attendance → attended count (falls back to accepted if endpoint not available)
+    List<dynamic> attendance = [];
+    if (results[1].statusCode == 200) {
+      final parsed = jsonDecode(results[1].body);
+      attendance = parsed is List ? parsed : (parsed['attendance'] ?? parsed['data'] ?? []);
+    }
+    final totalAttended = attendance.isNotEmpty ? attendance.length : accepted;
+    final attendancePct = accepted > 0 ? (totalAttended / accepted) * 100.0 : 0.0;
+
+    // Reviews → feedback notes
+    List<String> feedbackNotes = [];
+    if (results[2].statusCode == 200) {
+      try {
+        final parsed = jsonDecode(results[2].body);
+        final list = parsed is List ? parsed : (parsed['reviews'] ?? parsed['data'] ?? []);
+        feedbackNotes = (list as List)
+            .where((r) => r['comment'] != null || r['content'] != null)
+            .map((r) => (r['comment'] ?? r['content'] ?? '').toString())
+            .toList();
+      } catch (_) {}
+    }
+
+    return {
+      'sessionId': sessionId,
+      'sessionTitle': '',
+      'totalStudentsEnrolled': accepted,
+      'totalRequestsReceived': totalRequests,
+      'totalAccepted': accepted,
+      'totalRejected': rejected,
+      'totalAttended': totalAttended,
+      'averageAttendancePercentage': attendancePct,
+      'totalDuration': 0,
+      'feedbackNotes': feedbackNotes,
+      'sessionDate': null,
+    };
   }
 
   Future<List<Map<String, dynamic>>> fetchCourseSessionsAnalytics(String courseId, String token) async {
     final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + '/courses/$courseId/sessions/analytics'),
+      Uri.parse('${ApiConstants.baseUrl}/courses/$courseId/sessions/analytics'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -379,7 +453,7 @@ class LiveSessionRemoteDataSource {
 
   Future<Map<String, dynamic>> fetchOverallAnalytics(String token) async {
     final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/analytics/overview'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/analytics/overview'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -395,7 +469,7 @@ class LiveSessionRemoteDataSource {
 
   Future<List<Map<String, dynamic>>> fetchSessionAttendance(String sessionId, String token) async {
     final response = await http.get(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId/attendance'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/attendance'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -414,7 +488,7 @@ class LiveSessionRemoteDataSource {
 
   Future<void> markAttendance(String sessionId, String studentId, String token) async {
     final response = await http.post(
-      Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessions + '/$sessionId/attendance/$studentId'),
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/attendance/$studentId'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',

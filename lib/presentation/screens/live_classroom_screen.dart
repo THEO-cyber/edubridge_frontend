@@ -90,10 +90,12 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
       ..on<RoomDisconnectedEvent>((_) => _navigateBack())
       ..on<ParticipantConnectedEvent>(rebuild)
       ..on<ParticipantDisconnectedEvent>((e) {
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _raisedHands.remove(e.participant.identity);
           if (_spotlightId == e.participant.identity) _spotlightId = null;
         });
+        }
       })
       ..on<TrackPublishedEvent>(rebuild)
       ..on<TrackUnpublishedEvent>(rebuild)
@@ -130,7 +132,11 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
       switch (type) {
         case _kHand:
           final up = msg['up'] as bool? ?? false;
-          setState(() { if (up) _raisedHands.add(sender); else _raisedHands.remove(sender); });
+          setState(() { if (up) {
+            _raisedHands.add(sender);
+          } else {
+            _raisedHands.remove(sender);
+          } });
         case _kApplause:
           _triggerApplause(fromSelf: false);
         case _kDraw:

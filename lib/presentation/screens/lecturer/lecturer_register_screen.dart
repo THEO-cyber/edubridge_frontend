@@ -4,7 +4,7 @@ import '../../../core/secure_storage.dart';
 import '../../blocs/auth_bloc.dart';
 
 class LecturerRegisterScreen extends StatefulWidget {
-  const LecturerRegisterScreen({Key? key}) : super(key: key);
+  const LecturerRegisterScreen({super.key});
 
   @override
   State<LecturerRegisterScreen> createState() => _LecturerRegisterScreenState();

@@ -7,7 +7,7 @@ class AppTheme {
     colorScheme: ColorScheme.fromSwatch().copyWith(
       primary: const Color(0xFF1A237E),
       secondary: const Color(0xFF1976D2),
-      background: const Color(0xFFF5F6FA),
+      surface: const Color(0xFFF5F6FA),
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: Color(0xFF1A237E),

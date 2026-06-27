@@ -108,6 +108,7 @@ class LiveSessionRepositoryImpl implements LiveSessionRepository {
             maxStudents: e['maxStudents'] ?? 50,
             currentParticipants: e['currentParticipants'] ?? 0,
             isRecorded: e['isRecorded'] ?? false,
+            durationMinutes: (e['duration'] as num?)?.toInt() ?? 0,
           ),
         )
         .toList();
@@ -167,7 +168,7 @@ class LiveSessionRepositoryImpl implements LiveSessionRepository {
   Future<SessionAnalyticsEntity> fetchSessionAnalytics(String sessionId, String token) async {
     final data = await remoteDataSource.fetchSessionAnalytics(sessionId, token);
     return SessionAnalyticsEntity(
-      sessionId: data['sessionId'],
+      sessionId: data['sessionId'] ?? sessionId,
       sessionTitle: data['sessionTitle'] ?? '',
       totalStudentsEnrolled: data['totalStudentsEnrolled'] ?? 0,
       totalRequestsReceived: data['totalRequestsReceived'] ?? 0,

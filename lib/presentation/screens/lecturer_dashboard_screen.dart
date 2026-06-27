@@ -7,11 +7,14 @@ import '../../data/datasources/course_remote_data_source.dart';
 import '../../data/datasources/live_session_remote_data_source.dart';
 import '../../data/datasources/profile_remote_data_source.dart';
 import '../blocs/live_session_bloc_provider.dart';
+import 'instructor_application_screen.dart';
 import 'lecture_analytics_dashboard_screen.dart';
 import 'lecturer/lecturer_course_management_screen.dart';
 import 'lecturer_earnings_screen.dart';
 import 'lecturer_session_management_screen.dart';
 import 'lecturer_withdrawal_screen.dart';
+import 'lecturer_settings_screen.dart';
+import 'reports_screen.dart';
 
 const _kPrimary = Color(0xFF1A237E);
 const _kAccent = Color(0xFF1976D2);
@@ -26,6 +29,7 @@ class LecturerDashboardScreen extends StatefulWidget {
 }
 
 class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 0;
 
   // Shared user data loaded once and passed down
@@ -65,10 +69,16 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
 
   void _onNavTap(int index) => setState(() => _selectedIndex = index);
 
+  void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
+
   Widget _buildPage(int index) {
     switch (index) {
       case 0:
-        return _DashboardHome(profile: _profile, onNavTap: _onNavTap);
+        return _DashboardHome(
+          profile: _profile,
+          onNavTap: _onNavTap,
+          onOpenDrawer: _openDrawer,
+        );
       case 1:
         return const LecturerCourseManagementScreen();
       case 2:
@@ -89,6 +99,7 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: _kBg,
       drawer: _buildDrawer(),
       body: AnimatedSwitcher(
@@ -220,6 +231,44 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
                     );
                   },
                 ),
+                ListTile(
+                  leading: Icon(
+                    Icons.settings_outlined,
+                    color: Colors.blueGrey[600],
+                  ),
+                  title: Text(
+                    'Settings',
+                    style: TextStyle(color: Colors.blueGrey[800]),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const LecturerSettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.assignment_ind_outlined, color: Colors.blueGrey[600]),
+                  title: Text('Instructor Application', style: TextStyle(color: Colors.blueGrey[800])),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const InstructorApplicationScreen()),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.flag_outlined, color: Colors.blueGrey[600]),
+                  title: Text('My Reports', style: TextStyle(color: Colors.blueGrey[800])),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ReportsScreen()),
+                    );
+                  },
+                ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Colors.redAccent),
@@ -318,8 +367,13 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
 class _DashboardHome extends StatefulWidget {
   final Map<String, dynamic> profile;
   final void Function(int) onNavTap;
+  final VoidCallback onOpenDrawer;
 
-  const _DashboardHome({required this.profile, required this.onNavTap});
+  const _DashboardHome({
+    required this.profile,
+    required this.onNavTap,
+    required this.onOpenDrawer,
+  });
 
   @override
   State<_DashboardHome> createState() => _DashboardHomeState();
@@ -447,11 +501,9 @@ class _DashboardHomeState extends State<_DashboardHome> {
             expandedHeight: 190,
             pinned: true,
             backgroundColor: _kPrimary,
-            leading: Builder(
-              builder: (ctx) => IconButton(
-                icon: const Icon(Icons.menu, color: Colors.white),
-                onPressed: () => Scaffold.of(ctx).openDrawer(),
-              ),
+            leading: IconButton(
+              icon: const Icon(Icons.menu, color: Colors.white),
+              onPressed: widget.onOpenDrawer,
             ),
             actions: [
               IconButton(

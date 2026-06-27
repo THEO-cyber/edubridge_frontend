@@ -8,10 +8,10 @@ class ReviewScreenEnhanced extends StatefulWidget {
   final String token;
 
   const ReviewScreenEnhanced({
-    Key? key,
+    super.key,
     required this.courseId,
     required this.token,
-  }) : super(key: key);
+  });
 
   @override
   State<ReviewScreenEnhanced> createState() => _ReviewScreenEnhancedState();

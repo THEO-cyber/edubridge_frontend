@@ -59,8 +59,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   void dispose() {
     _slideCtrl.dispose();
     _emailCtrl.dispose();
-    for (final c in _otpCtrls) c.dispose();
-    for (final n in _otpNodes) n.dispose();
+    for (final c in _otpCtrls) {
+      c.dispose();
+    }
+    for (final n in _otpNodes) {
+      n.dispose();
+    }
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();

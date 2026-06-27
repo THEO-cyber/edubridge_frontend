@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:edubridge/constants/api_constants.dart';
 import 'package:http/http.dart' as http;
 import '../../core/error_handling.dart';
+import '../../core/http_utils.dart';
 import '../datasources/auth_remote_data_source.dart';
 
 class ProfileRemoteDataSource {
@@ -62,9 +63,33 @@ class ProfileRemoteDataSource {
     }
   }
 
+  Future<Map<String, dynamic>> fetchStudentAnalytics(String token) async {
+    try {
+      final response = await apiGet(
+        Uri.parse(ApiConstants.baseUrl + ApiConstants.studentAnalytics),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) {
+        final parsed = jsonDecode(response.body);
+        if (parsed is Map<String, dynamic>) {
+          final inner = parsed['data'];
+          if (inner is Map<String, dynamic>) return inner;
+          return parsed;
+        }
+      }
+      throw ApiException('Failed to fetch student analytics', response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(networkErrorMessage(e), 0);
+    }
+  }
+
   Future<Map<String, dynamic>> fetchInstructorAnalytics(String token) async {
     try {
-      final response = await http.get(
+      final response = await apiGet(
         Uri.parse(ApiConstants.baseUrl + ApiConstants.instructorAnalytics),
         headers: {
           'Content-Type': 'application/json',
@@ -79,8 +104,11 @@ class ProfileRemoteDataSource {
           return parsed;
         }
       }
-    } catch (_) {}
-    return {};
+      throw ApiException('Failed to fetch instructor analytics', response.statusCode);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(networkErrorMessage(e), 0);
+    }
   }
 
   /// Update instructor-specific profile fields
