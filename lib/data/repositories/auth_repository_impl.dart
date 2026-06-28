@@ -57,6 +57,10 @@ class AuthRepositoryImpl implements AuthRepository {
       } catch (_) {}
     }
 
+    final entityName = entity.name;
+    if (entityName != null && entityName.isNotEmpty) {
+      await SecureStorage.saveUserName(entityName);
+    }
     return entity;
   }
 
@@ -90,11 +94,14 @@ class AuthRepositoryImpl implements AuthRepository {
       await SecureStorage.saveRefreshToken(refreshToken);
     }
 
+    final regName = _extractUserName(userData);
+    if (regName.isNotEmpty) await SecureStorage.saveUserName(regName);
+
     return UserEntity(
       id: (userData['id'] ?? userData['userId'] ?? '').toString(),
       email: (userData['email'] ?? '').toString(),
       role: _extractRole(userData),
-      name: _extractUserName(userData),
+      name: regName,
       createdAt: _parseCreatedAt(
         userData['createdAt'] ?? userData['created_at'],
       ),

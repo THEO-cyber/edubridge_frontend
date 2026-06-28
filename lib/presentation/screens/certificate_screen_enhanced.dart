@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -42,6 +43,8 @@ class CertificateScreenEnhanced extends StatefulWidget {
 
 class _CertificateScreenEnhancedState
     extends State<CertificateScreenEnhanced> {
+  String _loggedInName = '';
+
   @override
   void initState() {
     super.initState();
@@ -52,9 +55,42 @@ class _CertificateScreenEnhancedState
     final t = widget.token?.isNotEmpty == true
         ? widget.token!
         : (await SecureStorage.getToken() ?? '');
+
+    String name = await SecureStorage.getUserName() ?? '';
+    if (name.isEmpty && t.isNotEmpty) {
+      name = await _fetchUserName(t);
+      if (name.isNotEmpty) await SecureStorage.saveUserName(name);
+    }
+
     if (mounted) {
+      setState(() => _loggedInName = name);
       context.read<CertificateBloc>().add(LoadCertificatesEvent(t));
     }
+  }
+
+  Future<String> _fetchUserName(String token) async {
+    try {
+      final res = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.me}'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final body = res.body.isNotEmpty
+            ? (jsonDecode(res.body) as Map<String, dynamic>)
+            : <String, dynamic>{};
+        final data = body['data'] is Map
+            ? body['data'] as Map<String, dynamic>
+            : body;
+        final first = (data['firstName'] ?? data['first_name'] ?? '').toString().trim();
+        final last  = (data['lastName']  ?? data['last_name']  ?? '').toString().trim();
+        if (first.isNotEmpty || last.isNotEmpty) {
+          return '$first $last'.trim();
+        }
+        final fallback = (data['name'] ?? data['username'] ?? '').toString().trim();
+        return fallback;
+      }
+    } catch (_) {}
+    return '';
   }
 
   @override
@@ -96,8 +132,10 @@ class _CertificateScreenEnhancedState
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
               itemCount: state.certificates.length,
-              itemBuilder: (_, i) =>
-                  _CertificateCard(cert: state.certificates[i]),
+              itemBuilder: (_, i) => _CertificateCard(
+                    cert: state.certificates[i],
+                    loggedInName: _loggedInName,
+                  ),
             );
           }
           return const SizedBox.shrink();
@@ -146,7 +184,8 @@ class _CertificateScreenEnhancedState
 
 class _CertificateCard extends StatefulWidget {
   final CertificateEntity cert;
-  const _CertificateCard({required this.cert});
+  final String loggedInName;
+  const _CertificateCard({required this.cert, this.loggedInName = ''});
 
   @override
   State<_CertificateCard> createState() => _CertificateCardState();
@@ -182,7 +221,7 @@ class _CertificateCardState extends State<_CertificateCard> {
             children: [
               // ── Banner preview ─────────────────────────────────────────────
               Container(
-                height: 140,
+                height: 120,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Color(0xFF0D1B4B), Color(0xFF1A3272)],
@@ -265,7 +304,7 @@ class _CertificateCardState extends State<_CertificateCard> {
               Container(
                 color: Colors.white,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Column(
                   children: [
                     Row(children: [
@@ -287,32 +326,35 @@ class _CertificateCardState extends State<_CertificateCard> {
                     const SizedBox(height: 10),
                     const Divider(height: 1, color: Color(0xFFF0F0F0)),
                     const SizedBox(height: 12),
-                    Row(children: [
-                      _infoChip(Icons.tag_rounded,
-                          '#${cert.certificateNumber}'),
-                      const Spacer(),
-                      // Download button
-                      _actionBtn(
-                        icon: _downloading
-                            ? null
-                            : Icons.download_rounded,
-                        label: 'Download',
-                        loading: _downloading,
-                        color: _navy,
-                        onTap: _handleDownload,
-                      ),
-                      const SizedBox(width: 10),
-                      // Share button
-                      _actionBtn(
-                        icon: _sharing
-                            ? null
-                            : Icons.share_rounded,
-                        label: 'Share',
-                        loading: _sharing,
-                        color: _gold,
-                        onTap: _handleShare,
-                      ),
-                    ]),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: _infoChip(Icons.tag_rounded,
+                              '#${cert.certificateNumber}'),
+                        ),
+                        const SizedBox(width: 8),
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          // Download button
+                          _actionBtn(
+                            icon: _downloading ? null : Icons.download_rounded,
+                            label: 'Download',
+                            loading: _downloading,
+                            color: _navy,
+                            onTap: _handleDownload,
+                          ),
+                          const SizedBox(width: 8),
+                          // Share button
+                          _actionBtn(
+                            icon: _sharing ? null : Icons.share_rounded,
+                            label: 'Share',
+                            loading: _sharing,
+                            color: _gold,
+                            onTap: _handleShare,
+                          ),
+                        ]),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -350,7 +392,7 @@ class _CertificateCardState extends State<_CertificateCard> {
       );
 
   Widget _infoChip(IconData icon, String label) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
           color: const Color(0xFFF0F2FB),
           borderRadius: BorderRadius.circular(20),
@@ -358,8 +400,13 @@ class _CertificateCardState extends State<_CertificateCard> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 12, color: Colors.blueGrey),
           const SizedBox(width: 4),
-          Text(label,
-              style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ]),
       );
 
@@ -374,7 +421,7 @@ class _CertificateCardState extends State<_CertificateCard> {
         onTap: loading ? null : onTap,
         child: Container(
           padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(22),
@@ -401,7 +448,10 @@ class _CertificateCardState extends State<_CertificateCard> {
 
   void _openPreview(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _CertificatePreviewScreen(cert: cert),
+      builder: (_) => _CertificatePreviewScreen(
+        cert: cert,
+        loggedInName: widget.loggedInName,
+      ),
     ));
   }
 
@@ -409,7 +459,7 @@ class _CertificateCardState extends State<_CertificateCard> {
     if (_downloading) return;
     setState(() => _downloading = true);
     try {
-      final bytes = await _getPdfBytes(cert);
+      final bytes = await _getPdfBytes(cert, fallbackName: widget.loggedInName);
       final file = await _savePdfToDevice(bytes,
           certNumber: cert.certificateNumber, permanent: true);
       final result = await OpenFilex.open(file.path);
@@ -457,7 +507,7 @@ class _CertificateCardState extends State<_CertificateCard> {
     if (_sharing) return;
     setState(() => _sharing = true);
     try {
-      final bytes = await _getPdfBytes(cert);
+      final bytes = await _getPdfBytes(cert, fallbackName: widget.loggedInName);
       final file = await _savePdfToDevice(bytes,
           certNumber: cert.certificateNumber, permanent: false);
       await Share.shareXFiles(
@@ -483,7 +533,8 @@ class _CertificateCardState extends State<_CertificateCard> {
 
 class _CertificatePreviewScreen extends StatefulWidget {
   final CertificateEntity cert;
-  const _CertificatePreviewScreen({required this.cert});
+  final String loggedInName;
+  const _CertificatePreviewScreen({required this.cert, this.loggedInName = ''});
 
   @override
   State<_CertificatePreviewScreen> createState() =>
@@ -613,7 +664,11 @@ class _CertificatePreviewScreenState
   // ── On-screen certificate widget ────────────────────────────────────────────
 
   Widget _buildCertificateWidget() {
-    final name = cert.studentName.isNotEmpty ? cert.studentName : 'Graduate';
+    final name = cert.studentName.isNotEmpty
+        ? cert.studentName
+        : widget.loggedInName.isNotEmpty
+            ? widget.loggedInName
+            : 'Graduate';
     final course =
         cert.courseName.isNotEmpty ? cert.courseName : 'EduBridge Course';
 
@@ -668,7 +723,7 @@ class _CertificatePreviewScreenState
 
             // ── Main content ──────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(48, 24, 48, 20),
+              padding: const EdgeInsets.fromLTRB(48, 14, 48, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -677,8 +732,8 @@ class _CertificatePreviewScreenState
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: 30,
-                        height: 30,
+                        width: 22,
+                        height: 22,
                         decoration: const BoxDecoration(
                           color: _navy,
                           shape: BoxShape.circle,
@@ -688,53 +743,53 @@ class _CertificatePreviewScreenState
                               style: TextStyle(
                                   color: _gold,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16)),
+                                  fontSize: 12)),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       const Text(
                         'EDUBRIDGE',
                         style: TextStyle(
                             color: _navy,
-                            fontSize: 14,
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            letterSpacing: 4),
+                            letterSpacing: 3),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
 
                   // Gold divider
                   _goldDivider(),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
 
                   // Title
                   const Text(
                     'Certificate of Completion',
                     style: TextStyle(
                         color: _navy,
-                        fontSize: 22,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   const Text(
                     'THIS IS TO CERTIFY THAT',
                     style: TextStyle(
                         color: Colors.blueGrey,
-                        fontSize: 8,
+                        fontSize: 7,
                         letterSpacing: 3,
                         fontWeight: FontWeight.w500),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 5),
 
                   // Student name
                   Text(
                     name,
                     style: const TextStyle(
                         color: _navy,
-                        fontSize: 26,
+                        fontSize: 21,
                         fontWeight: FontWeight.bold,
                         height: 1.2,
                         fontStyle: FontStyle.italic),
@@ -742,23 +797,23 @@ class _CertificatePreviewScreenState
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   const Text(
                     'HAS SUCCESSFULLY COMPLETED THE COURSE',
                     style: TextStyle(
                         color: Colors.blueGrey,
-                        fontSize: 7.5,
-                        letterSpacing: 2.5,
+                        fontSize: 7,
+                        letterSpacing: 2,
                         fontWeight: FontWeight.w500),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 5),
 
                   // Course name
                   Text(
                     '"$course"',
                     style: const TextStyle(
                         color: Color(0xFF1A3272),
-                        fontSize: 15,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         height: 1.3),
                     textAlign: TextAlign.center,
@@ -768,55 +823,86 @@ class _CertificatePreviewScreenState
 
                   const Spacer(),
 
-                  // Bottom section
+                  // Cert info bar
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12,
+                    children: [
+                      Text(
+                        'No: #${cert.certificateNumber}',
+                        style: const TextStyle(
+                            fontSize: 6.5, color: Colors.blueGrey,
+                            letterSpacing: 0.8),
+                      ),
+                      Text(
+                        'Issued: $_formattedDate',
+                        style: const TextStyle(
+                            fontSize: 6.5, color: Colors.blueGrey,
+                            letterSpacing: 0.8),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+
+                  // Two signature lines
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Left: date + cert number
+                      // Left — EduBridge Academy
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Container(
-                                width: 80, height: 1, color: _navy),
-                            const SizedBox(height: 4),
-                            Text(_formattedDate,
-                                style: const TextStyle(
-                                    fontSize: 9,
-                                    color: _navy,
-                                    fontWeight: FontWeight.w600)),
-                            const Text('DATE OF ISSUE',
+                            Container(width: 60, height: 1, color: _navy),
+                            const SizedBox(height: 2),
+                            Text(
+                              cert.issuedBy.isNotEmpty
+                                  ? cert.issuedBy
+                                  : 'EduBridge Academy',
+                              style: const TextStyle(
+                                  fontSize: 7,
+                                  color: _navy,
+                                  fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const Text('AUTHORIZED SIGNATORY',
                                 style: TextStyle(
-                                    fontSize: 7,
+                                    fontSize: 5.5,
                                     color: Colors.blueGrey,
-                                    letterSpacing: 1.5)),
+                                    letterSpacing: 0.8)),
                           ],
                         ),
                       ),
 
-                      // Center: seal
-                      _buildSeal(),
+                      // Center seal (smaller)
+                      _buildSeal(size: 48),
 
-                      // Right: cert number
+                      // Right — instructor
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Container(
-                                width: 80, height: 1, color: _navy),
-                            const SizedBox(height: 4),
+                            Container(width: 60, height: 1, color: _navy),
+                            const SizedBox(height: 2),
                             Text(
-                              '#${cert.certificateNumber}',
+                              cert.instructorName.isNotEmpty
+                                  ? cert.instructorName
+                                  : 'Course Instructor',
                               style: const TextStyle(
-                                  fontSize: 9,
+                                  fontSize: 7,
                                   color: _navy,
-                                  fontWeight: FontWeight.w600),
+                                  fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const Text('CERTIFICATE NO.',
+                            const Text('COURSE INSTRUCTOR',
                                 style: TextStyle(
-                                    fontSize: 7,
+                                    fontSize: 5.5,
                                     color: Colors.blueGrey,
-                                    letterSpacing: 1.5)),
+                                    letterSpacing: 0.8)),
                           ],
                         ),
                       ),
@@ -854,9 +940,9 @@ class _CertificatePreviewScreenState
             width: 22, height: 22, child: CustomPaint(painter: _CornerPainter())),
       );
 
-  Widget _buildSeal() => Container(
-        width: 64,
-        height: 64,
+  Widget _buildSeal({double size = 64}) => Container(
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const RadialGradient(
@@ -873,20 +959,20 @@ class _CertificatePreviewScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.workspace_premium_rounded,
-                color: _navy, size: 20),
-            const SizedBox(height: 1),
-            const Text('EDUBRIDGE',
+            Icon(Icons.workspace_premium_rounded,
+                color: _navy, size: size * 0.31),
+            SizedBox(height: size * 0.015),
+            Text('EDUBRIDGE',
                 style: TextStyle(
                     color: _navy,
-                    fontSize: 5.5,
+                    fontSize: size * 0.086,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 1)),
-            const Text('CERTIFIED',
+                    letterSpacing: 0.8)),
+            Text('CERTIFIED',
                 style: TextStyle(
                     color: _navy,
-                    fontSize: 4.5,
-                    letterSpacing: 0.8)),
+                    fontSize: size * 0.07,
+                    letterSpacing: 0.6)),
           ],
         ),
       );
@@ -897,7 +983,7 @@ class _CertificatePreviewScreenState
     if (_downloading) return;
     setState(() => _downloading = true);
     try {
-      final bytes = await _getPdfBytes(cert);
+      final bytes = await _getPdfBytes(cert, fallbackName: widget.loggedInName);
       final file = await _savePdfToDevice(bytes,
           certNumber: cert.certificateNumber, permanent: true);
       final result = await OpenFilex.open(file.path);
@@ -945,7 +1031,7 @@ class _CertificatePreviewScreenState
     if (_sharing) return;
     setState(() => _sharing = true);
     try {
-      final bytes = await _getPdfBytes(cert);
+      final bytes = await _getPdfBytes(cert, fallbackName: widget.loggedInName);
       final file = await _savePdfToDevice(bytes,
           certNumber: cert.certificateNumber, permanent: false);
       await Share.shareXFiles(
@@ -970,7 +1056,7 @@ class _CertificatePreviewScreenState
 
 /// Tries GET /certificates/:id/download from the backend first.
 /// Falls back to local PDF generation if the endpoint fails or returns non-PDF.
-Future<Uint8List> _getPdfBytes(CertificateEntity cert) async {
+Future<Uint8List> _getPdfBytes(CertificateEntity cert, {String fallbackName = ''}) async {
   if (cert.id.isNotEmpty) {
     try {
       final token = await SecureStorage.getToken() ?? '';
@@ -989,7 +1075,7 @@ Future<Uint8List> _getPdfBytes(CertificateEntity cert) async {
     } catch (_) {}
   }
   // Fall back to locally generated PDF
-  return CertificatePdfBuilder.build(cert);
+  return CertificatePdfBuilder.build(cert, fallbackName: fallbackName);
 }
 
 Future<File> _savePdfToDevice(
@@ -1034,10 +1120,14 @@ Future<File> _savePdfToDevice(
 // ── PDF builder ───────────────────────────────────────────────────────────────
 
 class CertificatePdfBuilder {
-  static Future<Uint8List> build(CertificateEntity cert) async {
+  static Future<Uint8List> build(CertificateEntity cert, {String fallbackName = ''}) async {
     final doc = pw.Document();
 
-    final name = cert.studentName.isNotEmpty ? cert.studentName : 'Graduate';
+    final name = cert.studentName.isNotEmpty
+        ? cert.studentName
+        : fallbackName.isNotEmpty
+            ? fallbackName
+            : 'Graduate';
     final course = cert.courseName.isNotEmpty ? cert.courseName : 'EduBridge Course';
     final instructor = cert.instructorName.isNotEmpty ? cert.instructorName : '';
     final issuedBy = cert.issuedBy.isNotEmpty ? cert.issuedBy : 'EduBridge Academy';
