@@ -301,7 +301,7 @@ class _CourseResultCard extends StatelessWidget {
                         ],
                         const Spacer(),
                         Text(
-                          price == 0 ? 'Free' : '₦$price',
+                          price == 0 ? 'Free' : 'FCFA $price',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,

@@ -40,7 +40,6 @@ dependencies:
   flutter_secure_storage: ^10.0.0
   file_picker: ^11.0.2
   intl: ^0.20.2
-  flutter_stripe: ^11.1.1
   webview_flutter: ^4.9.0
   path_provider: ^2.1.5
   path: ^1.9.0
@@ -72,6 +71,10 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/images/edu.png"
+  # Adaptive icon so modern Android launchers mask the "e" correctly
+  # (circle / squircle) instead of showing a flat square.
+  adaptive_icon_background: "#1A237E"
+  adaptive_icon_foreground: "assets/images/edu_foreground.png"
   min_sdk_android: 21
   remove_alpha_ios: true
 

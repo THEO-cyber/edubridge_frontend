@@ -185,20 +185,51 @@ class _NotificationScreenEnhancedState
           .read<NotificationBloc>()
           .add(MarkAsReadEvent(n['id'], _token ?? ''));
     }
-    final type = (n['type'] ?? '').toString();
-    switch (type) {
-      case 'live_session':
-        Navigator.of(context).pushNamed('/live-sessions');
-        break;
-      case 'certificate':
-        Navigator.of(context).pushNamed('/certificates');
-        break;
-      case 'course':
-      case 'enrollment':
-        Navigator.of(context).pushNamed('/my-courses');
-        break;
-      default:
-        break;
+
+    // Route by the notification type (backend enum values are UPPERCASE) with
+    // the actionUrl as a secondary hint. Matches case-insensitively so every
+    // notification opens somewhere sensible.
+    final type = (n['type'] ?? '').toString().toUpperCase();
+    final url = (n['actionUrl'] ?? '').toString().toLowerCase();
+
+    String? dest;
+    if (type.contains('SESSION') || url.contains('session') || url.contains('live')) {
+      dest = '/live-sessions';
+    } else if (type.contains('CERTIFICATE') || url.contains('certificate')) {
+      dest = '/certificates';
+    } else if (type.contains('CHAT') || url.contains('chat')) {
+      dest = '/chat';
+    } else if (type.contains('PAYOUT') ||
+        type.contains('PAYMENT') ||
+        url.contains('payment') ||
+        url.contains('payout')) {
+      dest = '/student-dashboard';
+    } else if (type.contains('ENROLLMENT') ||
+        type.contains('COURSE') ||
+        type.contains('PROGRESS') ||
+        type.contains('REVIEW') ||
+        url.contains('course') ||
+        url.contains('learn')) {
+      dest = '/my-courses';
+    }
+
+    if (dest != null) {
+      Navigator.of(context).pushNamed(dest);
+    } else {
+      // Generic notification with no dedicated screen — surface its content.
+      showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text(n['title']?.toString() ?? 'Notification'),
+          content: Text(n['message']?.toString() ?? ''),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
     }
   }
 }

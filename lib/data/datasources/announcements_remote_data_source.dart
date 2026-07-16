@@ -1,3 +1,4 @@
+import '../../core/http_utils.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
@@ -5,7 +6,7 @@ import '../../constants/api_constants.dart';
 class AnnouncementsRemoteDataSource {
   Future<List<dynamic>> getCourseAnnouncements(
       String courseId, String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse(ApiConstants.baseUrl +
           ApiConstants.courseAnnouncements(courseId)),
       headers: {'Authorization': 'Bearer $token'},
@@ -16,7 +17,7 @@ class AnnouncementsRemoteDataSource {
 
   Future<Map<String, dynamic>> createAnnouncement(
       String courseId, String title, String content, String token) async {
-    final res = await http.post(
+    final res = await apiPost(
       Uri.parse(ApiConstants.baseUrl +
           ApiConstants.courseAnnouncements(courseId)),
       headers: {
@@ -33,7 +34,7 @@ class AnnouncementsRemoteDataSource {
 
   Future<void> updateAnnouncement(
       String id, String title, String content, String token) async {
-    await http.patch(
+    await apiPatch(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.announcementById(id)),
       headers: {
         'Content-Type': 'application/json',
@@ -44,7 +45,7 @@ class AnnouncementsRemoteDataSource {
   }
 
   Future<void> deleteAnnouncement(String id, String token) async {
-    await http.delete(
+    await apiDelete(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.announcementById(id)),
       headers: {'Authorization': 'Bearer $token'},
     );

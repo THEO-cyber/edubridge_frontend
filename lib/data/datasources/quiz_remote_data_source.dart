@@ -1,3 +1,4 @@
+import '../../core/http_utils.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
@@ -5,7 +6,7 @@ import '../../constants/api_constants.dart';
 class QuizRemoteDataSource {
   Future<Map<String, dynamic>?> getQuizForLesson(
       String lessonId, String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.quizForLesson(lessonId)),
       headers: {'Authorization': 'Bearer $token'},
     );
@@ -15,7 +16,7 @@ class QuizRemoteDataSource {
 
   Future<Map<String, dynamic>> startQuiz(
       String quizId, String token) async {
-    final res = await http.post(
+    final res = await apiPost(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.startQuiz(quizId)),
       headers: {'Authorization': 'Bearer $token'},
     );
@@ -30,7 +31,7 @@ class QuizRemoteDataSource {
       List<Map<String, dynamic>> answers,
       int timeSpent,
       String token) async {
-    final res = await http.post(
+    final res = await apiPost(
       Uri.parse(
           ApiConstants.baseUrl + ApiConstants.submitQuizAttempt(attemptId)),
       headers: {
@@ -46,7 +47,7 @@ class QuizRemoteDataSource {
   }
 
   Future<List<dynamic>> getMyAttempts(String quizId, String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.myQuizAttempts(quizId)),
       headers: {'Authorization': 'Bearer $token'},
     );

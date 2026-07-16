@@ -12,12 +12,9 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<UserEntity> login(String email, String password) async {
     final data = await remoteDataSource.login(email, password);
-    print('---------- [AuthRepo] Raw login response keys: ${data.keys.toList()}');
-    print('---------- [AuthRepo] Raw login response: $data');
 
     if (data['requires2FA'] == true) {
       final tempToken = (data['tempToken'] ?? '').toString();
-      print('---------- [AuthRepo] 2FA required, tempToken length: ${tempToken.length}');
       throw Requires2FAException(tempToken);
     }
 
@@ -27,14 +24,8 @@ class AuthRepositoryImpl implements AuthRepository {
     final token = _extractToken(data);
     final refreshToken = _extractRefreshToken(data);
 
-    print('---------- [AuthRepo] Extracted token: $token');
-    print('---------- [AuthRepo] Extracted refreshToken: $refreshToken');
-
     if (token != null && token.isNotEmpty) {
       await SecureStorage.saveToken(token);
-      print('---------- [AuthRepo] Token SAVED to SecureStorage');
-    } else {
-      print('---------- [AuthRepo] WARNING: token is null/empty — NOT saved');
     }
     if (refreshToken != null && refreshToken.isNotEmpty) {
       await SecureStorage.saveRefreshToken(refreshToken);

@@ -33,7 +33,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     final token = await SecureStorage.getToken();
-    print('---------- [ProfileScreen] Token from SecureStorage: $token');
     if (mounted) {
       setState(() {
         _token = token;
@@ -41,12 +40,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
       if (token != null && !_profileLoaded) {
         _profileLoaded = true;
-        print('---------- [ProfileScreen] Dispatching LoadProfileEvent');
         if (mounted) {
           context.read<ProfileBloc>().add(LoadProfileEvent(token));
         }
-      } else if (token == null) {
-        print('---------- [ProfileScreen] No token — showing not-logged-in UI');
       }
     }
   }
@@ -66,42 +62,158 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildNotLoggedIn(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.lock_outline, size: 72, color: _kNavy),
-            const SizedBox(height: 20),
-            const Text(
-              'Please log in to view your profile',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () =>
-                    Navigator.of(context).pushNamed('/user-login'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kNavy,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Login',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Branded hero ──────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 72, 24, 40),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_kNavy, _kBlue],
+              ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
               ),
             ),
-          ],
-        ),
+            child: Column(
+              children: [
+                Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.45), width: 2),
+                  ),
+                  child: const Icon(Icons.person_outline,
+                      size: 50, color: Colors.white),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Welcome to EduBridge',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Sign in to track your progress, earn certificates, '
+                  'and continue right where you left off.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 14,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Primary + secondary CTAs ──────────────────────────────
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        Navigator.of(context).pushNamed('/user-login'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kNavy,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Log In',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: () =>
+                        Navigator.of(context).pushNamed('/user-register'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _kNavy,
+                      side: const BorderSide(color: _kNavy, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Create Account',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                ),
+                const SizedBox(height: 36),
+                Text(
+                  'WHY JOIN',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: Colors.black.withValues(alpha: 0.45),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _benefit(Icons.play_circle_outline, 'Learn anywhere',
+                    'Stream courses on any device, anytime'),
+                _benefit(Icons.trending_up_rounded, 'Track your progress',
+                    'Pick up lessons right where you left off'),
+                _benefit(Icons.workspace_premium_outlined, 'Earn certificates',
+                    'Showcase the courses you complete'),
+                _benefit(Icons.favorite_border_rounded, 'Save favourites',
+                    'Build a wishlist of courses to take'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _benefit(IconData icon, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: _kBlue.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: _kBlue, size: 23),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.black87)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: const TextStyle(fontSize: 13, color: Colors.black54)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

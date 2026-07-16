@@ -248,7 +248,7 @@ class _CourseCard extends StatelessWidget {
                         Text(
                           course.isFree
                               ? 'Free'
-                              : '₦${course.price.toStringAsFixed(0)}',
+                              : 'FCFA ${course.price.toStringAsFixed(0)}',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,

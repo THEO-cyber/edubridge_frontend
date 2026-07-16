@@ -194,11 +194,13 @@ class _CourseCard extends StatelessWidget {
               child: SizedBox(
                 height: 140,
                 width: double.infinity,
-                child: course.imageUrl != null
+                child: (course.imageUrl != null && course.imageUrl!.isNotEmpty)
                     ? Image.network(
                         course.imageUrl!,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                        loadingBuilder: (context, child, progress) =>
+                            progress == null ? child : _imagePlaceholder(),
                       )
                     : _imagePlaceholder(),
               ),
@@ -281,7 +283,7 @@ class _CourseCard extends StatelessWidget {
                       Text(
                         course.isFree
                             ? 'Free'
-                            : '₦${course.price.toStringAsFixed(0)}',
+                            : 'FCFA ${course.price.toStringAsFixed(0)}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,

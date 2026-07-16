@@ -9,9 +9,16 @@ class PaymentRepositoryImpl implements PaymentRepository {
   @override
   Future<Map<String, dynamic>> createPaymentIntent(
     String courseId,
-    String token,
-  ) async {
-    return await remoteDataSource.createPaymentIntent(courseId, token);
+    String token, {
+    required String phoneNumber,
+    String? couponCode,
+  }) async {
+    return await remoteDataSource.createPaymentIntent(
+      courseId,
+      token,
+      phoneNumber: phoneNumber,
+      couponCode: couponCode,
+    );
   }
 
   @override

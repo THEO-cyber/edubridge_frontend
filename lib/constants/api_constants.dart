@@ -1,5 +1,13 @@
 class ApiConstants {
-  static const String baseUrl = 'http://192.168.1.152/api/v1';
+  // Build-time configurable so the same binary can target dev/staging/prod
+  // without a code change:
+  //   flutter build apk --dart-define=API_BASE_URL=https://api.yourdomain.com/api/v1
+  // The default is only a local/dev fallback — set API_BASE_URL for real builds.
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue:
+        'https://edubridge-proxy.michaelrodri091.workers.dev/api/v1',
+  );
 
   // Auth
   static const String login = '/auth/login';

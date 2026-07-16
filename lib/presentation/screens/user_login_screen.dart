@@ -47,6 +47,8 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
               context: context,
               tempToken: state.tempToken,
               onVerified: (ctx) async {
+                // After 2FA the role is resolved on the next launch via splash;
+                // default to student here and let role-based routing correct it.
                 await SecureStorage.saveRole('student');
                 if (ctx.mounted) {
                   Navigator.pushNamedAndRemoveUntil(
@@ -55,10 +57,21 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
               },
             );
           } else if (state is AuthSuccess) {
-            await SecureStorage.saveRole('student');
+            // Route by the account's ACTUAL role, not a hardcoded 'student'.
+            final role = state.user.role.toLowerCase().trim();
+            final String dest;
+            if (role == 'instructor' || role == 'lecturer') {
+              await SecureStorage.saveRole('instructor');
+              dest = '/lecturer-dashboard';
+            } else if (role == 'admin' || role == 'super_admin') {
+              await SecureStorage.saveRole(role);
+              dest = '/admin-dashboard';
+            } else {
+              await SecureStorage.saveRole('student');
+              dest = '/student-dashboard';
+            }
             if (context.mounted) {
-              Navigator.pushNamedAndRemoveUntil(
-                  context, '/student-dashboard', (_) => false);
+              Navigator.pushNamedAndRemoveUntil(context, dest, (_) => false);
             }
           }
         },

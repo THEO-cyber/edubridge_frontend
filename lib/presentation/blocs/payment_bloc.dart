@@ -7,7 +7,14 @@ abstract class PaymentEvent {}
 class CreatePaymentIntentEvent extends PaymentEvent {
   final String courseId;
   final String token;
-  CreatePaymentIntentEvent(this.courseId, this.token);
+  final String phoneNumber;
+  final String? couponCode;
+  CreatePaymentIntentEvent(
+    this.courseId,
+    this.token, {
+    required this.phoneNumber,
+    this.couponCode,
+  });
 }
 
 class FetchPaymentHistoryEvent extends PaymentEvent {
@@ -50,6 +57,8 @@ class PaymentBloc extends Bloc<PaymentEvent, PaymentState> {
         final intent = await createPaymentIntentUseCase(
           event.courseId,
           event.token,
+          phoneNumber: event.phoneNumber,
+          couponCode: event.couponCode,
         );
         emit(PaymentSuccess(intent));
       } catch (e) {

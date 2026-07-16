@@ -11,7 +11,7 @@ class ProfileRemoteDataSource {
   ProfileRemoteDataSource(this.authRemoteDataSource);
 
   Future<Map<String, dynamic>> fetchProfile(String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.profile),
       headers: {
         'Content-Type': 'application/json',
@@ -41,7 +41,7 @@ class ProfileRemoteDataSource {
   }
 
   Future<void> updateProfile(Map<String, dynamic> data, String token) async {
-    final response = await http.patch(
+    final response = await apiPatch(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.updateProfile),
       headers: {
         'Content-Type': 'application/json',
@@ -116,7 +116,7 @@ class ProfileRemoteDataSource {
     Map<String, dynamic> data,
     String token,
   ) async {
-    final response = await http.put(
+    final response = await apiPut(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.updateInstructorProfile),
       headers: {
         'Content-Type': 'application/json',

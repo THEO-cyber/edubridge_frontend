@@ -1,3 +1,4 @@
+import '../../core/http_utils.dart';
 import 'dart:convert';
 
 import 'package:edubridge/constants/api_constants.dart';
@@ -7,7 +8,7 @@ import '../../core/error_handling.dart';
 
 class NotificationRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchNotifications(String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.notifications),
       headers: {
         'Content-Type': 'application/json',

@@ -10,7 +10,7 @@ class LiveSessionRemoteDataSource {
     // Backend has no bare GET /live-sessions — use /upcoming instead
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessionUpcoming}';
     print('---------- [LiveSessions] GET $url');
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
@@ -28,7 +28,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<Map<String, dynamic>> fetchLiveSessionDetail(String sessionId, String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId'),
       headers: {
         'Content-Type': 'application/json',
@@ -44,7 +44,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> requestLiveSession(String token, String sessionId, String courseId) async {
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessionRequest),
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +60,7 @@ class LiveSessionRemoteDataSource {
   Future<Map<String, dynamic>> joinLiveSession(String sessionId, String token) async {
     final url = '${ApiConstants.baseUrl}/live-sessions/$sessionId/join';
     print('---------- [JoinSession] POST $url');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
@@ -81,7 +81,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<List<Map<String, dynamic>>> fetchMySessionRequests(String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessionRequests}/my-requests'),
       headers: {
         'Content-Type': 'application/json',
@@ -100,7 +100,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> leaveLiveSession(String sessionId, String token) async {
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(
         '${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/leave',
       ),
@@ -163,7 +163,7 @@ class LiveSessionRemoteDataSource {
     final url = ApiConstants.baseUrl + ApiConstants.liveSessions;
     print('---------- [LiveSession] POST $url');
     print('---------- [LiveSession] Body: ${jsonEncode(body)}');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> scheduleLiveSession(String token, String sessionId, Map<String, dynamic> body) async {
-    final response = await http.put(
+    final response = await apiPut(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/schedule'),
       headers: {
         'Content-Type': 'application/json',
@@ -193,7 +193,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<List<Map<String, dynamic>>> fetchSessionRequests(String sessionId, String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/requests'),
       headers: {
         'Content-Type': 'application/json',
@@ -212,7 +212,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> acceptSessionRequest(String requestId, String token, {String? feedback}) async {
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessionRequests}/$requestId/accept'),
       headers: {
         'Content-Type': 'application/json',
@@ -226,7 +226,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> rejectSessionRequest(String requestId, String token, String rejectionReason) async {
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessionRequests}/$requestId/reject'),
       headers: {
         'Content-Type': 'application/json',
@@ -240,7 +240,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> endLiveSession(String sessionId, String token) async {
-    final response = await http.patch(
+    final response = await apiPatch(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/end'),
       headers: {
         'Content-Type': 'application/json',
@@ -255,7 +255,7 @@ class LiveSessionRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchAllInstructorRequests(String token) async {
     final url = ApiConstants.baseUrl + ApiConstants.liveSessionRequests;
     print('---------- [InstructorRequests] GET $url');
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
@@ -276,7 +276,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> cancelSessionRequest(String requestId, String token) async {
-    final response = await http.patch(
+    final response = await apiPatch(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.liveSessionCancel(requestId)),
       headers: {
         'Content-Type': 'application/json',
@@ -292,7 +292,7 @@ class LiveSessionRemoteDataSource {
     final url = '${ApiConstants.baseUrl}/live-sessions/availability';
     print('---------- [Availability] POST $url');
     print('---------- [Availability] Body: ${jsonEncode(body)}');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
@@ -310,7 +310,7 @@ class LiveSessionRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchMyAvailabilitySlots(String token) async {
     final url = ApiConstants.baseUrl + ApiConstants.liveSessionMyAvailability;
     print('---------- [MySlots] GET $url');
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
@@ -334,7 +334,7 @@ class LiveSessionRemoteDataSource {
   Future<void> deleteAvailabilitySlot(String slotId, String token) async {
     final url = '${ApiConstants.baseUrl}/live-sessions/availability/$slotId';
     print('---------- [DeleteSlot] DELETE $url');
-    final response = await http.delete(
+    final response = await apiDelete(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
@@ -348,7 +348,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> recordAttendance(String sessionId, String token, List<String> attendeeIds) async {
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/attendance'),
       headers: {
         'Content-Type': 'application/json',
@@ -433,7 +433,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<List<Map<String, dynamic>>> fetchCourseSessionsAnalytics(String courseId, String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse('${ApiConstants.baseUrl}/courses/$courseId/sessions/analytics'),
       headers: {
         'Content-Type': 'application/json',
@@ -452,7 +452,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<Map<String, dynamic>> fetchOverallAnalytics(String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/analytics/overview'),
       headers: {
         'Content-Type': 'application/json',
@@ -468,7 +468,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<List<Map<String, dynamic>>> fetchSessionAttendance(String sessionId, String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/attendance'),
       headers: {
         'Content-Type': 'application/json',
@@ -487,7 +487,7 @@ class LiveSessionRemoteDataSource {
   }
 
   Future<void> markAttendance(String sessionId, String studentId, String token) async {
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId/attendance/$studentId'),
       headers: {
         'Content-Type': 'application/json',
@@ -505,7 +505,7 @@ class LiveSessionRemoteDataSource {
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessions}';
     print('---------- [CreateSession] POST $url');
     print('---------- [CreateSession] Body: ${jsonEncode(body)}');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       body: jsonEncode(body),
@@ -538,7 +538,7 @@ class LiveSessionRemoteDataSource {
     // Try /live-sessions/upcoming first; if it returns 0, try /live-sessions?type=group
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessionUpcoming}';
     print('---------- [Upcoming] GET $url');
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
@@ -554,7 +554,7 @@ class LiveSessionRemoteDataSource {
       final fallbackUrl =
           '${ApiConstants.baseUrl}${ApiConstants.liveSessions}?type=group&status=scheduled';
       print('---------- [Upcoming] Fallback GET $fallbackUrl');
-      final fb = await http.get(
+      final fb = await apiGet(
         Uri.parse(fallbackUrl),
         headers: {
           'Content-Type': 'application/json',
@@ -579,7 +579,7 @@ class LiveSessionRemoteDataSource {
     print('---------- [Apply] POST $url');
     final hasBody = message != null && message.isNotEmpty;
     print('---------- [Apply] Body: ${hasBody ? jsonEncode({'message': message}) : '(none)'}');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',
@@ -607,7 +607,7 @@ class LiveSessionRemoteDataSource {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.liveSessionApplications(sessionId)}';
     print('---------- [Applications] GET $url');
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
@@ -629,7 +629,7 @@ class LiveSessionRemoteDataSource {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.liveSessionApplicationAccept(applicationId)}';
     print('---------- [AcceptApp] PATCH $url');
-    final response = await http.patch(
+    final response = await apiPatch(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
@@ -649,7 +649,7 @@ class LiveSessionRemoteDataSource {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.liveSessionApplicationReject(applicationId)}';
     print('---------- [RejectApp] PATCH $url');
-    final response = await http.patch(
+    final response = await apiPatch(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
@@ -670,7 +670,7 @@ class LiveSessionRemoteDataSource {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.liveSessionNotifyAccepted(sessionId)}';
     print('---------- [Notify] POST $url');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       body: jsonEncode(
@@ -685,7 +685,7 @@ class LiveSessionRemoteDataSource {
   Future<void> deleteSession(String sessionId, String token) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId';
     print('---------- [DeleteSession] DELETE $url');
-    final response = await http.delete(
+    final response = await apiDelete(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
@@ -707,7 +707,7 @@ class LiveSessionRemoteDataSource {
     print('---------- [Reschedule] PATCH $url');
     final body = {'scheduledAt': scheduledAt.toUtc().toIso8601String()};
     print('---------- [Reschedule] Body: ${jsonEncode(body)}');
-    final response = await http.patch(
+    final response = await apiPatch(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       body: jsonEncode(body),
@@ -731,7 +731,7 @@ class LiveSessionRemoteDataSource {
     final url = ApiConstants.baseUrl + ApiConstants.liveSessionConfirm(requestId);
     print('---------- [ConfirmSession] POST $url');
     print('---------- [ConfirmSession] requestId: $requestId');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: {
         'Content-Type': 'application/json',

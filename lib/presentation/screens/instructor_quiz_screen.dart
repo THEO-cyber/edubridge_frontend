@@ -427,13 +427,17 @@ class _InstructorQuizScreenState extends State<InstructorQuizScreen> {
 
     try {
       final h = await _headers();
-      // Try dedicated publish endpoint first, fall back to PATCH
-      final publishUrl = '${ApiConstants.baseUrl}${ApiConstants.publishQuiz(quizId)}';
-      var res = await apiPost(Uri.parse(publishUrl), headers: h,
-          body: jsonEncode({'isPublished': !_isPublished}));
+      // Publish/unpublish via PATCH /quizzes/:id (the backend's real route, which
+      // accepts isPublished). The old POST /quizzes/:id/publish endpoint does not
+      // exist server-side and 404s on every call, so it is only kept as a fallback.
+      var res = await apiPatch(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.updateQuiz(quizId)}'),
+        headers: h,
+        body: jsonEncode({'isPublished': !_isPublished}),
+      );
       if (res.statusCode == 404 || res.statusCode == 405) {
-        res = await apiPatch(
-          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.updateQuiz(quizId)}'),
+        res = await apiPost(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.publishQuiz(quizId)}'),
           headers: h,
           body: jsonEncode({'isPublished': !_isPublished}),
         );

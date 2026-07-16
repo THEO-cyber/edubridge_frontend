@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_stripe/flutter_stripe.dart' hide Card;
 import '../../core/secure_storage.dart';
+import '../../core/money.dart';
 import '../../data/datasources/payment_remote_data_source.dart';
 import '../blocs/payment_bloc.dart';
 
@@ -25,6 +26,7 @@ class PaymentScreenEnhanced extends StatefulWidget {
 
 class _PaymentScreenEnhancedState extends State<PaymentScreenEnhanced> {
   final _couponController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _paymentDs = PaymentRemoteDataSource();
 
   double _discount = 0;
@@ -36,6 +38,7 @@ class _PaymentScreenEnhancedState extends State<PaymentScreenEnhanced> {
   @override
   void dispose() {
     _couponController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -104,62 +107,91 @@ class _PaymentScreenEnhancedState extends State<PaymentScreenEnhanced> {
     });
   }
 
-  Future<void> _processPayment(Map<String, dynamic> paymentIntent) async {
-    try {
-      final clientSecret =
-          (paymentIntent['clientSecret'] ??
-              paymentIntent['client_secret'] ??
-              '').toString();
+  /// After the collection is created, the customer approves the charge on their
+  /// phone (MoMo/Orange PIN prompt). We poll the backend until the payment is
+  /// confirmed (COMPLETED) or fails.
+  Future<void> _awaitMomoConfirmation(Map<String, dynamic> intent) async {
+    final paymentId = (intent['paymentId'] ?? '').toString();
+    if (paymentId.isEmpty) {
+      _showError('Could not start the payment. Please try again.');
+      return;
+    }
 
-      if (clientSecret.isEmpty) {
-        throw Exception('Payment setup failed — missing client secret.');
+    final operator = (intent['operator'] ?? '').toString().toUpperCase();
+    _showConfirmSheet(operator);
+
+    final token = await SecureStorage.getToken();
+    if (token == null || token.isEmpty) {
+      _finishConfirmation();
+      _showError('Authentication required.');
+      return;
+    }
+
+    // Poll for up to ~2 minutes (24 tries * 5s).
+    String status = 'PENDING';
+    for (var i = 0; i < 24; i++) {
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted) return;
+      try {
+        status = await _paymentDs.getPaymentStatus(paymentId, token);
+      } catch (_) {
+        continue; // transient error — keep polling
       }
+      if (status == 'COMPLETED' || status == 'FAILED') break;
+    }
 
-      await Stripe.instance.initPaymentSheet(
-        paymentSheetParameters: SetupPaymentSheetParameters(
-          paymentIntentClientSecret: clientSecret,
-          merchantDisplayName: 'EduBridge',
-          style: ThemeMode.light,
-          appearance: PaymentSheetAppearance(
-            colors: PaymentSheetAppearanceColors(
-              primary: _kPrimary,
-            ),
-          ),
+    if (!mounted) return;
+    _finishConfirmation();
+
+    if (status == 'COMPLETED') {
+      Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment successful! You are now enrolled.'),
+          backgroundColor: Colors.green,
         ),
       );
-
-      await Stripe.instance.presentPaymentSheet();
-
-      if (mounted) {
-        Navigator.of(context).pop(true); // return success
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment successful! You are now enrolled.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } on StripeException catch (e) {
-      if (e.error.code == FailureCode.Canceled) return; // user dismissed sheet
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('Payment failed: ${e.error.localizedMessage ?? e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Payment error: ${e.toString().replaceFirst("Exception: ", "")}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    } else if (status == 'FAILED') {
+      _showError('Payment failed or was declined. Please try again.');
+    } else {
+      _showError('Still waiting for confirmation. Check "My Courses" shortly.');
     }
+  }
+
+  void _finishConfirmation() {
+    // Close the confirm sheet if it is open.
+    final nav = Navigator.of(context, rootNavigator: true);
+    if (nav.canPop()) nav.pop();
+  }
+
+  void _showConfirmSheet(String operator) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirm on your phone'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: _kPrimary),
+            const SizedBox(height: 20),
+            Text(
+              operator.isNotEmpty
+                  ? 'A $operator Mobile Money prompt has been sent to your phone. Enter your PIN to approve the payment.'
+                  : 'A Mobile Money prompt has been sent to your phone. Enter your PIN to approve the payment.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -175,7 +207,7 @@ class _PaymentScreenEnhancedState extends State<PaymentScreenEnhanced> {
       body: BlocListener<PaymentBloc, PaymentState>(
         listener: (context, state) {
           if (state is PaymentSuccess) {
-            _processPayment(state.paymentIntent);
+            _awaitMomoConfirmation(state.paymentIntent);
           } else if (state is PaymentFailure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -210,8 +242,16 @@ class _PaymentScreenEnhancedState extends State<PaymentScreenEnhanced> {
                 discountPercent: _discountPercent,
                 finalPrice: _finalPrice,
               ),
+              const SizedBox(height: 16),
+              _PhoneField(controller: _phoneController),
               const SizedBox(height: 24),
-              _PayButton(finalPrice: _finalPrice, courseId: widget.courseId),
+              _PayButton(
+                finalPrice: _finalPrice,
+                courseId: widget.courseId,
+                phoneController: _phoneController,
+                couponCode:
+                    _couponApplied ? _couponController.text.trim() : null,
+              ),
               const SizedBox(height: 16),
               Center(
                 child: Row(
@@ -221,7 +261,7 @@ class _PaymentScreenEnhancedState extends State<PaymentScreenEnhanced> {
                         size: 14, color: Colors.blueGrey[400]),
                     const SizedBox(width: 4),
                     Text(
-                      'Payments secured by Stripe',
+                      'Secured by Nkwa — MoMo & Orange Money',
                       style: TextStyle(
                           fontSize: 12, color: Colors.blueGrey[400]),
                     ),
@@ -276,7 +316,7 @@ class _OrderSummaryCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '₦${price.toStringAsFixed(2)}',
+                  Money.xaf(price),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -423,12 +463,12 @@ class _PriceSummaryCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _row('Subtotal', '₦${subtotal.toStringAsFixed(2)}'),
+            _row('Subtotal', Money.xaf(subtotal)),
             if (discount > 0) ...[
               const SizedBox(height: 8),
               _row(
                 'Discount${discountPercent > 0 ? " (${discountPercent.toStringAsFixed(0)}%)" : ""}',
-                '-₦${discount.toStringAsFixed(2)}',
+                '-${Money.xaf(discount)}',
                 valueColor: Colors.green,
               ),
             ],
@@ -438,7 +478,7 @@ class _PriceSummaryCard extends StatelessWidget {
             ),
             _row(
               'Total',
-              '₦${finalPrice.toStringAsFixed(2)}',
+              Money.xaf(finalPrice),
               bold: true,
               valueColor: _kPrimary,
             ),
@@ -465,11 +505,70 @@ class _PriceSummaryCard extends StatelessWidget {
   }
 }
 
+class _PhoneField extends StatelessWidget {
+  final TextEditingController controller;
+  const _PhoneField({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Mobile Money number',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(height: 4),
+            const Text(
+              'Enter your MTN MoMo or Orange Money number. You will approve the payment on your phone.',
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+                LengthLimitingTextInputFormatter(13),
+              ],
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.smartphone, color: _kPrimary),
+                hintText: '6XXXXXXXX',
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.blueGrey.shade300),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PayButton extends StatelessWidget {
   final double finalPrice;
   final String courseId;
+  final TextEditingController phoneController;
+  final String? couponCode;
 
-  const _PayButton({required this.finalPrice, required this.courseId});
+  const _PayButton({
+    required this.finalPrice,
+    required this.courseId,
+    required this.phoneController,
+    this.couponCode,
+  });
+
+  bool _validPhone(String v) {
+    final digits = v.replaceAll(RegExp(r'[^\d]'), '');
+    // Accept a 9-digit local Cameroon number or a 237-prefixed one.
+    return digits.length == 9 || (digits.startsWith('237') && digits.length == 12);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -483,7 +582,18 @@ class _PayButton extends StatelessWidget {
             onPressed: isLoading
                 ? null
                 : () async {
+                    final phone = phoneController.text.trim();
+                    if (!_validPhone(phone)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'Enter a valid MoMo/Orange number (9 digits)'),
+                        ),
+                      );
+                      return;
+                    }
                     final token = await SecureStorage.getToken();
+                    if (!context.mounted) return;
                     if (token == null || token.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -492,7 +602,12 @@ class _PayButton extends StatelessWidget {
                       return;
                     }
                     context.read<PaymentBloc>().add(
-                          CreatePaymentIntentEvent(courseId, token),
+                          CreatePaymentIntentEvent(
+                            courseId,
+                            token,
+                            phoneNumber: phone,
+                            couponCode: couponCode,
+                          ),
                         );
                   },
             style: ElevatedButton.styleFrom(
@@ -510,7 +625,7 @@ class _PayButton extends StatelessWidget {
                         strokeWidth: 2, color: Colors.white),
                   )
                 : Text(
-                    'Pay ₦${finalPrice.toStringAsFixed(2)}',
+                    'Pay ${Money.xaf(finalPrice)}',
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: 17),
                   ),

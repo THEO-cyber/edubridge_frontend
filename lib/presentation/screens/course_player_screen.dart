@@ -10,6 +10,7 @@ import '../../constants/api_constants.dart';
 import '../../core/mini_player_manager.dart';
 import '../blocs/certificate_bloc_provider.dart';
 import 'certificate_screen_enhanced.dart';
+import 'quiz_screen.dart';
 
 const _kNavy = Color(0xFF1A237E);
 const _kAccent = Color(0xFF3F51B5);
@@ -985,11 +986,30 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
           const SizedBox(width: 8),
         ],
         _navBtn(
+            icon: Icons.quiz_outlined,
+            label: 'Quiz',
+            enabled: true,
+            onTap: _openCurrentQuiz),
+        const SizedBox(width: 8),
+        _navBtn(
             icon: Icons.skip_next_rounded,
             label: 'Next',
             enabled: _hasNext,
             onTap: () => _jumpTo(_currentIndex + 1)),
       ]),
+    );
+  }
+
+  void _openCurrentQuiz() {
+    final l = widget.lessons[_currentIndex];
+    final lid = l['id']?.toString() ?? '';
+    final title = l['title']?.toString() ?? 'Lesson';
+    if (lid.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QuizScreen(lessonId: lid, lessonTitle: title),
+      ),
     );
   }
 

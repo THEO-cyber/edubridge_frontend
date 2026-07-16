@@ -286,12 +286,12 @@ class _LecturerEarningsScreenState extends State<LecturerEarningsScreen> {
   String _formatMoney(dynamic value) {
     final amount = double.tryParse(value.toString()) ?? 0;
     if (amount >= 1000000) {
-      return '₦${(amount / 1000000).toStringAsFixed(2)}M';
+      return 'FCFA ${(amount / 1000000).toStringAsFixed(2)}M';
     }
     if (amount >= 1000) {
-      return '₦${(amount / 1000).toStringAsFixed(1)}K';
+      return 'FCFA ${(amount / 1000).toStringAsFixed(1)}K';
     }
-    return '₦${amount.toStringAsFixed(2)}';
+    return 'FCFA ${amount.toStringAsFixed(2)}';
   }
 }
 
@@ -364,7 +364,7 @@ class _CourseRevenueCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis),
               const Spacer(),
               Text(
-                '₦${double.tryParse(revenue.toString())?.toStringAsFixed(0) ?? "0"}',
+                'FCFA ${double.tryParse(revenue.toString())?.toStringAsFixed(0) ?? "0"}',
                 style: const TextStyle(
                     color: Colors.green,
                     fontWeight: FontWeight.bold,
@@ -458,7 +458,7 @@ class _TransactionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '₦${amount.toStringAsFixed(2)}',
+                  'FCFA ${amount.toStringAsFixed(2)}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,

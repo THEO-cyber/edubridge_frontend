@@ -837,7 +837,7 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '₦${_price.toStringAsFixed(0)}',
+                  'FCFA ${_price.toStringAsFixed(0)}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 22, color: _navy),
                 ),

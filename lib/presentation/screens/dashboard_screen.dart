@@ -58,10 +58,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ListTile(
                 leading: const Icon(Icons.school_outlined,
                     color: Color(0xFF1976D2)),
-                title: const Text('Instructor Login'),
+                title: const Text('Become an Instructor'),
+                subtitle: const Text('Apply to teach on EduBridge'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.of(this.context).pushNamed('/lecturer-login');
+                  // Vetted onboarding: students apply; an admin approves before
+                  // authoring is unlocked. (Existing instructors just log in
+                  // normally — role-aware routing sends them to their dashboard.)
+                  Navigator.of(this.context).pushNamed('/instructor-application');
                 },
               ),
               ListTile(

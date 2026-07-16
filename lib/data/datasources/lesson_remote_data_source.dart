@@ -1,3 +1,4 @@
+import '../../core/http_utils.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:edubridge/constants/api_constants.dart';
@@ -27,7 +28,7 @@ class LessonRemoteDataSource {
     String courseId,
     String token,
   ) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(
         '${ApiConstants.baseUrl}${ApiConstants.lessons}?courseId=$courseId',
       ),
@@ -57,7 +58,7 @@ class LessonRemoteDataSource {
       'sortOrder': sectionData['order'] ?? 1,
     };
     debugPrint('-- addSection POST $url body=${jsonEncode(body)}');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: _auth(token),
       body: jsonEncode(body),
@@ -79,7 +80,7 @@ class LessonRemoteDataSource {
     // PATCH /lessons/sections/:sectionId
     final url = '${ApiConstants.baseUrl}${ApiConstants.lessons}/sections/$sectionId';
     debugPrint('-- updateSection PATCH $url body=${jsonEncode(sectionData)}');
-    final response = await http.patch(
+    final response = await apiPatch(
       Uri.parse(url),
       headers: _auth(token),
       body: jsonEncode(sectionData),
@@ -100,7 +101,7 @@ class LessonRemoteDataSource {
     // DELETE /lessons/sections/:sectionId
     final url = '${ApiConstants.baseUrl}${ApiConstants.lessons}/sections/$sectionId';
     debugPrint('-- deleteSection DELETE $url');
-    final response = await http.delete(Uri.parse(url), headers: _auth(token));
+    final response = await apiDelete(Uri.parse(url), headers: _auth(token));
     debugPrint('-- deleteSection STATUS ${response.statusCode} ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw ApiException(
@@ -122,7 +123,7 @@ class LessonRemoteDataSource {
       if (lessonData['content'] != null) 'content': lessonData['content'],
     };
     debugPrint('-- addLesson POST $url body=${jsonEncode(body)}');
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(url),
       headers: _auth(token),
       body: jsonEncode(body),
@@ -140,7 +141,7 @@ class LessonRemoteDataSource {
     Map<String, dynamic> lessonData,
     String token,
   ) async {
-    final response = await http.patch(
+    final response = await apiPatch(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.lessonDetails(lessonId)),
       headers: {
         'Content-Type': 'application/json',
@@ -155,7 +156,7 @@ class LessonRemoteDataSource {
   }
 
   Future<void> deleteLesson(String lessonId, String token) async {
-    final response = await http.delete(
+    final response = await apiDelete(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.lessonDetails(lessonId)),
       headers: {
         'Content-Type': 'application/json',

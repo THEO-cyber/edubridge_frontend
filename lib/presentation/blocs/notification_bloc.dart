@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
+import '../../core/http_utils.dart';
 import '../../core/secure_storage.dart';
 
 abstract class NotificationEvent {}
@@ -77,13 +78,10 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
         );
 
         if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final list = data is List
-              ? data
-              : (data['notifications'] ?? data['data'] ?? []);
-          _notifications = List<Map<String, dynamic>>.from(
-            (list as List).map(_normalize),
-          );
+          final list =
+              extractListOf(jsonDecode(response.body), ['notifications', 'items']);
+          _notifications =
+              List<Map<String, dynamic>>.from(list.map(_normalize));
         } else {
           _notifications = [];
         }
@@ -172,6 +170,8 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
       'type': (n['type'] ?? 'general').toString(),
       'read': n['read'] ?? n['isRead'] ?? false,
       'time': (n['createdAt'] ?? n['time'] ?? '').toString(),
+      'actionUrl': (n['actionUrl'] ?? n['action_url'] ?? '').toString(),
+      'metadata': n['metadata'],
     };
   }
 }

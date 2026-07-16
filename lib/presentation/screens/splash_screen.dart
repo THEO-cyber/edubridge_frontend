@@ -33,11 +33,13 @@ class _SplashScreenState extends State<SplashScreen>
       final valid = await AuthGuard.isTokenValid();
       if (!mounted) return;
       if (!valid) {
-        // Token missing or expired — clear stale credentials and go to login
+        // Guest / expired session — clear stale credentials and open the public
+        // landing dashboard (browse courses freely; log in from the Profile tab
+        // or when an action requires it) instead of a login wall.
         await SecureStorage.deleteAllTokens();
         await SecureStorage.clearRole();
         if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/user-login');
+        Navigator.of(context).pushReplacementNamed('/student-dashboard');
         return;
       }
       final role = (await SecureStorage.getRole() ?? '').toUpperCase();

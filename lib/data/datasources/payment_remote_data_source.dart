@@ -1,34 +1,61 @@
 import 'dart:convert';
 import 'package:edubridge/constants/api_constants.dart';
-import 'package:http/http.dart' as http;
 import '../../core/error_handling.dart';
-import 'package:flutter/foundation.dart';
+import '../../core/http_utils.dart';
 
 class PaymentRemoteDataSource {
+  /// Start a MoMo/Orange Money payment (Nkwa). The server derives the amount
+  /// from the course price; we forward the payer's phone number + optional
+  /// coupon. Returns { paymentId, nkwaPaymentId, status, operator, amount }.
   Future<Map<String, dynamic>> createPaymentIntent(
     String courseId,
-    String token,
-  ) async {
-    final response = await http.post(
+    String token, {
+    required String phoneNumber,
+    String? couponCode,
+  }) async {
+    final response = await apiPost(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.createPaymentIntent),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode({'courseId': courseId}),
+      body: jsonEncode({
+        'courseId': courseId,
+        'phoneNumber': phoneNumber,
+        if (couponCode != null && couponCode.isNotEmpty) 'couponCode': couponCode,
+      }),
     );
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body);
     } else {
-      throw ApiException(
-        'Failed to create payment intent',
-        response.statusCode,
-      );
+      String msg = 'Failed to start payment';
+      try {
+        final b = jsonDecode(response.body);
+        msg = (b['message'] ?? b['error'] ?? msg).toString();
+      } catch (_) {}
+      throw ApiException(msg, response.statusCode);
     }
   }
 
+  /// Poll a payment's status. Returns the status string:
+  /// PENDING | COMPLETED | FAILED.
+  Future<String> getPaymentStatus(String paymentId, String token) async {
+    final response = await apiGet(
+      Uri.parse('${ApiConstants.baseUrl}/payments/$paymentId/status'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      final data = extractObject(jsonDecode(response.body));
+      return (data['status'] ?? 'PENDING').toString().toUpperCase();
+    }
+    throw ApiException('Failed to check payment status', response.statusCode);
+  }
+
   Future<List<Map<String, dynamic>>> fetchPaymentHistory(String token) async {
-    final response = await http.get(
+    final response = await apiGet(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.paymentHistory),
       headers: {
         'Content-Type': 'application/json',
@@ -52,7 +79,7 @@ class PaymentRemoteDataSource {
     String courseId,
     String token,
   ) async {
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse('${ApiConstants.baseUrl}/payments/verify'),
       headers: {
         'Content-Type': 'application/json',
@@ -69,20 +96,15 @@ class PaymentRemoteDataSource {
 
   /// GET /payouts/earnings — instructor earnings data
   Future<Map<String, dynamic>> fetchEarnings(String token) async {
-    final response = await http
-        .get(
-          Uri.parse(ApiConstants.baseUrl + ApiConstants.payoutsEarnings),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-        )
-        .timeout(const Duration(seconds: 12));
-    debugPrint('-- fetchEarnings STATUS ${response.statusCode}');
+    final response = await apiGet(
+      Uri.parse(ApiConstants.baseUrl + ApiConstants.payoutsEarnings),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data is Map<String, dynamic>) return data;
-      return {'transactions': []};
+      return extractObject(jsonDecode(response.body));
     }
     throw ApiException('Failed to fetch earnings (${response.statusCode})',
         response.statusCode);
@@ -94,7 +116,7 @@ class PaymentRemoteDataSource {
     String courseId,
     String token,
   ) async {
-    final response = await http.post(
+    final response = await apiPost(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.couponsApply),
       headers: {
         'Content-Type': 'application/json',

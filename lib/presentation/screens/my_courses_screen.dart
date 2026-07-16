@@ -76,7 +76,9 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () {
-                            Navigator.pushNamed(context, '/courses');
+                            // '/courses' is not a registered route (would crash);
+                            // send users to the real course-browsing surface.
+                            Navigator.pushNamed(context, '/top-courses');
                           },
                           child: const Text('Browse Courses'),
                         ),

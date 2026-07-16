@@ -97,6 +97,38 @@ class _WishlistScreenState extends State<WishlistScreen> {
             ),
             BlocBuilder<WishlistBloc, WishlistState>(
               builder: (context, state) {
+                // Guest — the wishlist needs an account. Show a login prompt
+                // instead of an endless spinner (the load never fires without a token).
+                if (_token == null || _token!.isEmpty) {
+                  return SliverFillRemaining(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.favorite_border,
+                                size: 64, color: Colors.grey.shade400),
+                            const SizedBox(height: 16),
+                            const Text('Log in to see your wishlist',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.black54)),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => Navigator.of(context)
+                                  .pushNamed('/user-login'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _kNavy,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Login'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
                 if (state is WishlistInitial || state is WishlistLoading) {
                   return const SliverFillRemaining(
                     child: Center(child: CircularProgressIndicator(color: _kNavy)),
@@ -271,7 +303,7 @@ class _WishlistCard extends StatelessWidget {
                       Text(
                         course.isFree
                             ? 'Free'
-                            : '₦${course.price.toStringAsFixed(0)}',
+                            : 'FCFA ${course.price.toStringAsFixed(0)}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,

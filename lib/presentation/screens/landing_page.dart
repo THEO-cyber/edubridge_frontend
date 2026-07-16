@@ -713,7 +713,7 @@ class _CourseCardState extends State<_CourseCard> {
                         Text(
                           course.isFree
                               ? 'Free'
-                              : '₦${course.price.toStringAsFixed(0)}',
+                              : 'FCFA ${course.price.toStringAsFixed(0)}',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,

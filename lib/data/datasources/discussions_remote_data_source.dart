@@ -1,3 +1,4 @@
+import '../../core/http_utils.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
@@ -5,7 +6,7 @@ import '../../constants/api_constants.dart';
 class DiscussionsRemoteDataSource {
   Future<List<dynamic>> getCourseDiscussions(
       String courseId, String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse(
           ApiConstants.baseUrl + ApiConstants.courseDiscussions(courseId)),
       headers: {'Authorization': 'Bearer $token'},
@@ -16,7 +17,7 @@ class DiscussionsRemoteDataSource {
 
   Future<Map<String, dynamic>> getThread(
       String threadId, String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse(
           ApiConstants.baseUrl + ApiConstants.discussionThread(threadId)),
       headers: {'Authorization': 'Bearer $token'},
@@ -27,7 +28,7 @@ class DiscussionsRemoteDataSource {
 
   Future<Map<String, dynamic>> createThread(
       String courseId, String title, String content, String token) async {
-    final res = await http.post(
+    final res = await apiPost(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.discussionThreads),
       headers: {
         'Content-Type': 'application/json',
@@ -45,7 +46,7 @@ class DiscussionsRemoteDataSource {
   Future<Map<String, dynamic>> replyToThread(
       String threadId, String content, String token,
       {String? replyToId}) async {
-    final res = await http.post(
+    final res = await apiPost(
       Uri.parse(
           ApiConstants.baseUrl + ApiConstants.replyToThread(threadId)),
       headers: {
@@ -65,7 +66,7 @@ class DiscussionsRemoteDataSource {
 
   Future<void> markAsAnswered(
       String threadId, String replyId, String token) async {
-    await http.post(
+    await apiPost(
       Uri.parse(ApiConstants.baseUrl +
           ApiConstants.markAnswered(threadId, replyId)),
       headers: {'Authorization': 'Bearer $token'},
@@ -74,7 +75,7 @@ class DiscussionsRemoteDataSource {
 
   Future<void> submitReport(
       String targetType, String targetId, String reason, String token) async {
-    await http.post(
+    await apiPost(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.reports),
       headers: {
         'Content-Type': 'application/json',

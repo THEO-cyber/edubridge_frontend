@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../constants/api_constants.dart';
 import '../../core/cache/app_cache.dart';
 import '../../core/http_utils.dart';
@@ -27,7 +26,8 @@ class _LecturerWithdrawalScreenState extends State<LecturerWithdrawalScreen>
   double _availableBalance = 0;
   double _pendingAmount = 0;
   double _totalPaid = 0;
-  bool _stripeConnected = false;
+  bool _stripeConnected = false; // true once a MoMo/Orange payout number is saved
+  String _payoutPhone = '';
 
   // Request payout
   final _amountCtrl = TextEditingController();
@@ -64,9 +64,9 @@ class _LecturerWithdrawalScreenState extends State<LecturerWithdrawalScreen>
         double.tryParse((d['pendingAmount'] ?? d['pending'] ?? 0).toString()) ?? 0;
     _totalPaid =
         double.tryParse((d['totalPaid'] ?? d['totalWithdrawn'] ?? 0).toString()) ?? 0;
-    _stripeConnected = d['stripeConnected'] == true ||
-        d['isConnected'] == true ||
-        (d['stripeAccountId'] != null && d['stripeAccountId'] != '');
+    _stripeConnected = d['payoutConnected'] == true ||
+        (d['payoutPhone'] != null && d['payoutPhone'].toString().isNotEmpty);
+    _payoutPhone = (d['payoutPhone'] ?? '').toString();
   }
 
   Future<void> _load() async {
@@ -125,31 +125,54 @@ class _LecturerWithdrawalScreenState extends State<LecturerWithdrawalScreen>
   }
 
   Future<void> _connectStripe() async {
+    // Collect the instructor's MoMo/Orange Money number and save it as the
+    // payout destination (Nkwa disbursements go to this number).
+    final controller = TextEditingController(text: _payoutPhone);
+    final phone = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Payout number'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.smartphone),
+            hintText: '6XXXXXXXX (MoMo / Orange)',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (phone == null || phone.isEmpty) return;
+
+    final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    if (!(digits.length == 9 || (digits.startsWith('237') && digits.length == 12))) {
+      _snack('Enter a valid MoMo/Orange number (9 digits)', Colors.orange);
+      return;
+    }
+
     setState(() => _connectLoading = true);
     try {
       final token = await _token();
-      final res = await apiGet(
+      final res = await apiPost(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.payoutsConnect}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
+        body: jsonEncode({'phoneNumber': phone}),
       );
       if (res.statusCode == 200 || res.statusCode == 201) {
-        final data = jsonDecode(res.body);
-        final url = (data['url'] ?? data['onboardingUrl'] ?? data['link'] ?? '').toString();
-        if (url.isNotEmpty) {
-          final uri = Uri.parse(url);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          } else {
-            _snack('Could not open browser. URL: $url', Colors.red);
-          }
-        } else {
-          _snack('No onboarding URL returned', Colors.red);
-        }
+        _snack('Payout number saved', Colors.green);
+        await _load();
       } else {
-        _snack('Failed to get Stripe onboarding link', Colors.red);
+        _snack('Failed to save payout number', Colors.red);
       }
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''), Colors.red);
@@ -169,7 +192,7 @@ class _LecturerWithdrawalScreenState extends State<LecturerWithdrawalScreen>
       return;
     }
     if (!_stripeConnected) {
-      _snack('Connect your Stripe account first', Colors.orange);
+      _snack('Add your MoMo/Orange payout number first', Colors.orange);
       return;
     }
 
@@ -318,7 +341,7 @@ class _Stat extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('\$${value.toStringAsFixed(2)}',
+        Text('FCFA ${value.toStringAsFixed(0)}',
             style: TextStyle(
                 color: color, fontWeight: FontWeight.bold, fontSize: 18)),
         const SizedBox(height: 2),
@@ -346,7 +369,7 @@ class _StripeConnectBanner extends StatelessWidget {
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
-              'Connect your Stripe account to receive payouts',
+              'Add your MoMo/Orange Money number to receive payouts',
               style: TextStyle(fontSize: 13),
             ),
           ),
@@ -407,7 +430,7 @@ class _RequestTab extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 6),
               Text(
-                'Available: \$${maxAmount.toStringAsFixed(2)}',
+                'Available: FCFA ${maxAmount.toStringAsFixed(0)}',
                 style: TextStyle(color: Colors.green.shade700, fontSize: 13),
               ),
               const SizedBox(height: 20),
@@ -451,7 +474,7 @@ class _RequestTab extends StatelessWidget {
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
-                          'You must connect your Stripe account before requesting a payout.',
+                          'Add your MoMo/Orange Money payout number before requesting a payout.',
                           style: TextStyle(fontSize: 12),
                         ),
                       ),
@@ -484,7 +507,7 @@ class _RequestTab extends StatelessWidget {
               const SizedBox(height: 12),
               Center(
                 child: Text(
-                  'Payouts are processed in 1–3 business days via Stripe.',
+                  'Payouts are sent to your MoMo / Orange Money number.',
                   style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
@@ -566,7 +589,7 @@ class _PayoutTile extends StatelessWidget {
         child: Icon(statusIcon, color: statusColor, size: 20),
       ),
       title: Text(
-        '\$${amount.toStringAsFixed(2)}',
+        'FCFA ${amount.toStringAsFixed(0)}',
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: date.isNotEmpty

@@ -1,3 +1,4 @@
+import '../../core/http_utils.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
@@ -5,7 +6,7 @@ import '../../constants/api_constants.dart';
 class NotesRemoteDataSource {
   Future<List<dynamic>> getNotesForLesson(
       String lessonId, String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.notesForLesson(lessonId)),
       headers: {'Authorization': 'Bearer $token'},
     );
@@ -14,7 +15,7 @@ class NotesRemoteDataSource {
   }
 
   Future<List<dynamic>> getAllNotes(String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.notes),
       headers: {'Authorization': 'Bearer $token'},
     );
@@ -24,7 +25,7 @@ class NotesRemoteDataSource {
 
   Future<Map<String, dynamic>> createNote(
       String lessonId, String content, int? timestamp, String token) async {
-    final res = await http.post(
+    final res = await apiPost(
       Uri.parse(
           ApiConstants.baseUrl + ApiConstants.notesForLesson(lessonId)),
       headers: {
@@ -44,7 +45,7 @@ class NotesRemoteDataSource {
 
   Future<void> updateNote(
       String noteId, String content, String token) async {
-    await http.patch(
+    await apiPatch(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.noteById(noteId)),
       headers: {
         'Content-Type': 'application/json',
@@ -55,7 +56,7 @@ class NotesRemoteDataSource {
   }
 
   Future<void> deleteNote(String noteId, String token) async {
-    await http.delete(
+    await apiDelete(
       Uri.parse(ApiConstants.baseUrl + ApiConstants.noteById(noteId)),
       headers: {'Authorization': 'Bearer $token'},
     );

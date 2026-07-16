@@ -17,10 +17,12 @@ import '../blocs/certificate_bloc.dart';
 import '../blocs/certificate_bloc_provider.dart';
 
 // ── Brand colours ──────────────────────────────────────────────────────────────
-const _navy   = Color(0xFF0D1B4B);
-const _gold   = Color(0xFFC9A84C);
-const _goldLt = Color(0xFFF0D080);
-const _cream  = Color(0xFFFAF8F0);
+// Kept in sync with the canonical certificate PDF (backend buildPdf) and the web
+// CertificateCard: navy #0F172A, gold #F59E0B.
+const _navy   = Color(0xFF0F172A);
+const _gold   = Color(0xFFF59E0B);
+const _goldLt = Color(0xFFFBBF24);
+const _cream  = Color(0xFFF8FAFC);
 
 /// Can be used two ways:
 ///  1. Wrap in CertificateBlocProvider and pass token directly.
@@ -224,7 +226,7 @@ class _CertificateCardState extends State<_CertificateCard> {
                 height: 120,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFF0D1B4B), Color(0xFF1A3272)],
+                    colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -553,9 +555,9 @@ class _CertificatePreviewScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F24),
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0F24),
+        backgroundColor: const Color(0xFF0F172A),
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text('Certificate Preview',
@@ -601,7 +603,7 @@ class _CertificatePreviewScreenState
         ),
       ),
       bottomNavigationBar: Container(
-        color: const Color(0xFF0A0F24),
+        color: const Color(0xFF0F172A),
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         child: Row(children: [
           Expanded(
@@ -812,7 +814,7 @@ class _CertificatePreviewScreenState
                   Text(
                     '"$course"',
                     style: const TextStyle(
-                        color: Color(0xFF1A3272),
+                        color: Color(0xFF1E293B),
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         height: 1.3),
@@ -1135,10 +1137,10 @@ class CertificatePdfBuilder {
     final certNo = cert.certificateNumber;
 
     // Colours
-    const navyPdf   = PdfColor.fromInt(0xFF0D1B4B);
-    const goldPdf   = PdfColor.fromInt(0xFFC9A84C);
-    const goldLtPdf = PdfColor.fromInt(0xFFF0D080);
-    const creamPdf  = PdfColor.fromInt(0xFFFAF8F0);
+    const navyPdf   = PdfColor.fromInt(0xFF0F172A);
+    const goldPdf   = PdfColor.fromInt(0xFFF59E0B);
+    const goldLtPdf = PdfColor.fromInt(0xFFFBBF24);
+    const creamPdf  = PdfColor.fromInt(0xFFF8FAFC);
     const greyPdf   = PdfColor.fromInt(0xFF607D8B);
 
     doc.addPage(pw.Page(
@@ -1298,7 +1300,7 @@ class CertificatePdfBuilder {
                       '"$course"',
                       style: pw.TextStyle(
                           font: pw.Font.timesBold(),
-                          color: const PdfColor.fromInt(0xFF1A3272),
+                          color: const PdfColor.fromInt(0xFF1E293B),
                           fontSize: 18,
                           letterSpacing: 0.5),
                       textAlign: pw.TextAlign.center,

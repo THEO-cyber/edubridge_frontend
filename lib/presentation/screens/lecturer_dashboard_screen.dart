@@ -622,7 +622,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                     _StatCard(
                       icon: Icons.payments,
                       label: 'Revenue',
-                      value: '₦${_formatRevenue(totalRevenue)}',
+                      value: 'FCFA ${_formatRevenue(totalRevenue)}',
                       color: Colors.green.shade700,
                     ),
                   ],
@@ -1388,7 +1388,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                '₦$hourlyRate/hr',
+                                'FCFA $hourlyRate/hr',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 12,

@@ -31,11 +31,8 @@ class CourseRemoteDataSource {
       final response = await apiGet(uri,
           headers: {'Content-Type': 'application/json'});
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final coursesList = data is List
-            ? data
-            : (data['courses'] ?? data['data'] ?? []);
-        return List<Map<String, dynamic>>.from(coursesList);
+        return extractListOf(
+            jsonDecode(response.body), ['courses', 'results', 'items']);
       } else if (response.statusCode == 404) {
         return [];
       } else {
@@ -55,11 +52,8 @@ class CourseRemoteDataSource {
         headers: {'Content-Type': 'application/json'},
       );
       if (r1.statusCode == 200) {
-        final data = jsonDecode(r1.body);
-        final list = data is List
-            ? data
-            : (data['courses'] ?? data['results'] ?? data['data'] ?? []);
-        return List<Map<String, dynamic>>.from(list);
+        return extractListOf(
+            jsonDecode(r1.body), ['courses', 'results', 'items']);
       }
     } catch (_) {}
 
@@ -68,9 +62,8 @@ class CourseRemoteDataSource {
     try {
       final r2 = await apiGet(uri, headers: {'Content-Type': 'application/json'});
       if (r2.statusCode == 200) {
-        final data = jsonDecode(r2.body);
-        final list = data is List ? data : (data['courses'] ?? data['data'] ?? []);
-        return List<Map<String, dynamic>>.from(list);
+        return extractListOf(
+            jsonDecode(r2.body), ['courses', 'results', 'items']);
       }
       throw ApiException(_errorMessage(r2.body, 'Failed to search courses'), r2.statusCode);
     } catch (e) {
@@ -88,9 +81,7 @@ class CourseRemoteDataSource {
         headers: {'Content-Type': 'application/json'},
       );
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final coursesList = data is List ? data : (data['courses'] ?? []);
-        return List<Map<String, dynamic>>.from(coursesList);
+        return extractListOf(jsonDecode(response.body), ['courses', 'items']);
       }
       throw ApiException('Failed to fetch courses by category', response.statusCode);
     } catch (e) {
@@ -105,7 +96,9 @@ class CourseRemoteDataSource {
         Uri.parse(ApiConstants.baseUrl + ApiConstants.courseDetails(id)),
         headers: {'Content-Type': 'application/json'},
       );
-      if (response.statusCode == 200) return jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return extractObject(jsonDecode(response.body));
+      }
       if (response.statusCode == 404) throw NotFoundException('Course not found');
       throw ApiException('Failed to fetch course', response.statusCode);
     } catch (e) {
@@ -121,7 +114,7 @@ class CourseRemoteDataSource {
         headers: {'Content-Type': 'application/json'},
       );
       if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        return extractObject(jsonDecode(response.body));
       }
       throw ApiException('Failed to fetch course by slug', response.statusCode);
     } catch (e) {
@@ -142,9 +135,7 @@ class CourseRemoteDataSource {
         },
       );
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final coursesList = data is List ? data : (data['courses'] ?? []);
-        return List<Map<String, dynamic>>.from(coursesList);
+        return extractListOf(jsonDecode(response.body), ['courses', 'items']);
       }
       throw ApiException('Failed to fetch instructor courses', response.statusCode);
     } catch (e) {

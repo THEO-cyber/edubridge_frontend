@@ -224,7 +224,7 @@ class AdminRemoteDataSource {
   // ── Instructor moderation ──────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> fetchInstructors(String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.adminInstructors}'),
       headers: _auth(token),
     );
@@ -236,7 +236,7 @@ class AdminRemoteDataSource {
 
   Future<void> suspendInstructor(
       String id, String reason, String token) async {
-    final res = await http.post(
+    final res = await apiPost(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.adminSuspend(id)}'),
       headers: _auth(token),
       body: jsonEncode({'reason': reason}),
@@ -248,7 +248,7 @@ class AdminRemoteDataSource {
 
   Future<void> warnInstructor(
       String id, String message, String token) async {
-    final res = await http.post(
+    final res = await apiPost(
       Uri.parse('${ApiConstants.baseUrl}${ApiConstants.adminWarn(id)}'),
       headers: _auth(token),
       body: jsonEncode({'message': message}),
@@ -259,7 +259,7 @@ class AdminRemoteDataSource {
   }
 
   Future<void> deleteInstructor(String id, String token) async {
-    final res = await http.delete(
+    final res = await apiDelete(
       Uri.parse(
           '${ApiConstants.baseUrl}${ApiConstants.adminDeleteInstructor(id)}'),
       headers: _auth(token),
@@ -280,7 +280,7 @@ class AdminRemoteDataSource {
     final uri =
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.adminReviews}')
             .replace(queryParameters: params.isEmpty ? null : params);
-    final res = await http.get(uri, headers: _auth(token));
+    final res = await apiGet(uri, headers: _auth(token));
     if (res.statusCode == 200) {
       return _list(jsonDecode(res.body), ['data', 'reviews']);
     }
@@ -471,7 +471,7 @@ class AdminRemoteDataSource {
 
   Future<List<Map<String, dynamic>>> fetchSessionReviews(
       String sessionId, String token) async {
-    final res = await http.get(
+    final res = await apiGet(
       Uri.parse(
           '${ApiConstants.baseUrl}${ApiConstants.sessionReviews(sessionId)}'),
       headers: _auth(token),

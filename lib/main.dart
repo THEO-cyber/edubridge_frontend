@@ -25,8 +25,6 @@ import 'presentation/screens/lecturer_dashboard_screen.dart';
 import 'package:edubridge/presentation/blocs/profile_bloc_provider.dart';
 import 'package:edubridge/presentation/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
-import 'constants/app_config.dart';
 import 'core/theme.dart';
 import 'core/app_router.dart';
 import 'presentation/screens/dashboard_screen.dart';
@@ -59,11 +57,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Stripe
-  try {
-    Stripe.publishableKey = AppConfig.stripePublishableKey;
-    await Stripe.instance.applySettings();
-  } catch (_) {}
+  // Payments are handled server-side via Nkwa (MoMo/Orange Money) — the client
+  // only collects the phone number and polls status, so no payment SDK init is
+  // needed here.
 
   // Firebase + push notifications
   try {
@@ -177,6 +173,16 @@ class EduBridgeApp extends StatelessWidget {
         }
         return null;
       },
+      // Safety net: an unregistered named route must never hard-crash the app.
+      onUnknownRoute: (settings) => MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Not found')),
+          body: const Center(
+            child: Text('This page is unavailable.'),
+          ),
+        ),
+        settings: settings,
+      ),
     );
   }
 }
