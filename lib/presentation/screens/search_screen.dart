@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/category_store.dart';
 import '../../data/datasources/course_remote_data_source.dart';
 import 'course_detail_screen.dart';
 
@@ -19,10 +20,19 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _searched = false;
   String? _error;
 
+  // Real categories from the super-admin, not a hard-coded list.
+  List<CategoryLite> _categories = [];
+
   @override
   void initState() {
     super.initState();
     _focus.requestFocus();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final cats = await CategoryStore.load();
+    if (mounted) setState(() => _categories = cats);
   }
 
   @override
@@ -186,12 +196,15 @@ class _SearchScreenState extends State<SearchScreen> {
           style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
         ),
         const SizedBox(height: 32),
+        // Nothing to browse until the super-admin has categories, so don't
+        // render an empty heading.
+        if (_categories.isNotEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Popular searches',
+              Text('Browse by category',
                   style: TextStyle(
                       color: Colors.blueGrey.shade600,
                       fontWeight: FontWeight.w600)),
@@ -199,13 +212,17 @@ class _SearchScreenState extends State<SearchScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: ['Flutter', 'Python', 'React', 'Data Science',
-                    'UI/UX', 'Machine Learning']
-                    .map((tag) => ActionChip(
-                          label: Text(tag),
+                // The real catalogue the super-admin curates — a hard-coded
+                // list would send learners searching for things we don't teach.
+                children: _categories
+                    .map((cat) => ActionChip(
+                          label: Text(
+                              cat.icon != null && cat.icon!.isNotEmpty
+                                  ? '${cat.icon} ${cat.name}'
+                                  : cat.name),
                           onPressed: () {
-                            _controller.text = tag;
-                            _search(tag);
+                            _controller.text = cat.name;
+                            _search(cat.name);
                           },
                           backgroundColor:
                               const Color(0xFF1A237E).withValues(alpha: 0.08),

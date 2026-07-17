@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../constants/api_constants.dart';
+import '../../core/category_store.dart';
 import '../../core/error_handling.dart';
 import '../../core/http_utils.dart';
 import '../../core/secure_storage.dart';
@@ -26,18 +27,16 @@ class _LandingPageState extends State<LandingPage> {
 
   int _unreadNotifCount = 0;
   List<String> _categories = [];
+  // Distinguishes "still loading" from "there are genuinely none", so the
+  // section can be hidden instead of spinning forever.
+  bool _categoriesLoaded = false;
   String? _selectedCategory;
   List<CourseEntity> _categoryResults = [];
   bool _categoryLoading = false;
 
-  static const _fallbackCategories = [
-    'Development',
-    'Business',
-    'Design',
-    'IT & Software',
-    'Personal Dev',
-    'Photography',
-  ];
+  // No hard-coded category list on purpose: categories are owned by the
+  // super-admin, and inventing names here would send learners to categories
+  // that do not exist. CategoryStore falls back to the last real response.
 
   @override
   void initState() {
@@ -70,43 +69,41 @@ class _LandingPageState extends State<LandingPage> {
   }
 
   Future<void> _loadCategories() async {
-    try {
-      final r = await apiGet(
-        Uri.parse(ApiConstants.baseUrl + ApiConstants.searchCategories),
-        headers: {'Content-Type': 'application/json'},
-      );
-      if (r.statusCode == 200) {
-        final data = jsonDecode(r.body);
-        final list = data is List
-            ? data
-            : (data['categories'] ?? data['data'] ?? []);
-        final cats = (list as List)
-            .map((c) => c is Map
-                ? (c['name'] ?? c['title'] ?? c['category'] ?? '').toString()
-                : c.toString())
-            .where((c) => c.isNotEmpty)
-            .toList()
-            .cast<String>();
-        if (mounted && cats.isNotEmpty) {
-          setState(() => _categories = cats);
-          return;
-        }
-      }
-    } catch (_) {}
-    // Fallback: extract from courses
+    // The super-admin's list, or the last one we saw if we are offline.
+    final cats = await CategoryStore.load();
+    if (mounted && cats.isNotEmpty) {
+      setState(() {
+        _categories = cats.map((c) => c.name).toList();
+        _categoriesLoaded = true;
+      });
+      return;
+    }
+
+    // Never fetched before and no connection: derive from whatever courses we
+    // can reach, so the section still reflects the real catalogue.
     try {
       final courses = await _courseDs.fetchCourses();
-      final cats = courses
+      final derived = courses
           .map((c) => safeStr(c['category']))
           .where((c) => c.isNotEmpty)
           .toSet()
           .toList();
-      if (mounted && cats.isNotEmpty) {
-        setState(() => _categories = cats);
+      if (mounted && derived.isNotEmpty) {
+        setState(() {
+          _categories = derived;
+          _categoriesLoaded = true;
+        });
         return;
       }
     } catch (_) {}
-    if (mounted) setState(() => _categories = _fallbackCategories);
+
+    // Nothing real to show — leave it empty and let the UI hide the section.
+    if (mounted) {
+      setState(() {
+        _categories = [];
+        _categoriesLoaded = true;
+      });
+    }
   }
 
   Future<void> _selectCategory(String category) async {
@@ -251,7 +248,9 @@ class _LandingPageState extends State<LandingPage> {
                 children: [
                   const SizedBox(height: 20),
 
-                  // Popular Categories
+                  // Popular Categories — hidden entirely when the super-admin
+                  // has none, rather than spinning forever or inventing names.
+                  if (!_categoriesLoaded || _categories.isNotEmpty) ...[
                   _sectionTitle('Popular Categories'),
                   const SizedBox(height: 12),
                   SizedBox(
@@ -315,6 +314,7 @@ class _LandingPageState extends State<LandingPage> {
                           ),
                   ),
                   const SizedBox(height: 24),
+                  ],
 
                   // ── Category results ──────────────────────────────────────
                   if (_selectedCategory != null) ...[
