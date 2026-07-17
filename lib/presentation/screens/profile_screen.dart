@@ -7,6 +7,7 @@ import '../blocs/profile_bloc.dart';
 import '../blocs/wishlist_bloc.dart';
 import '../blocs/enrollment_bloc_provider.dart';
 import 'course_detail_screen.dart';
+import 'downloads_screen.dart';
 import '../blocs/enrollment_bloc.dart';
 
 const _kNavy = Color(0xFF1A237E);
@@ -408,6 +409,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           label: 'My Notes',
                           onTap: () =>
                               Navigator.pushNamed(context, '/my-notes'),
+                        ),
+                        _NavTile(
+                          icon: Icons.download_for_offline_outlined,
+                          label: 'Downloads',
+                          onTap: () =>
+                              Navigator.push(context, DownloadsScreen.route()),
                         ),
                         _NavTile(
                           icon: Icons.settings_outlined,

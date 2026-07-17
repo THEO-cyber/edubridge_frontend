@@ -55,3 +55,6 @@ android/key.properties
 
 # Markdown docs are kept local, not published
 *.md
+
+# Kotlin compiler session files from Gradle builds
+android/.kotlin/

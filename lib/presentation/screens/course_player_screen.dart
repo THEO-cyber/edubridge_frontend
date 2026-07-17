@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 import '../../constants/api_constants.dart';
+import '../../core/download_manager.dart';
 import '../../core/mini_player_manager.dart';
+import '../widgets/download_button.dart';
 import '../blocs/certificate_bloc_provider.dart';
 import 'certificate_screen_enhanced.dart';
 import 'quiz_screen.dart';
@@ -103,6 +105,11 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
   String? _videoErrorMsg;
   String _quality = '720p';
   static const _qualities = ['720p', '480p', '360p'];
+  // True when this lesson is being served from a file on the device.
+  bool _playingOffline = false;
+  // True when the server gave us an adaptive HLS master playlist, in which case
+  // the player picks quality itself and the manual selector is meaningless.
+  bool _adaptive = false;
 
   // ── lesson navigation
   late int _currentIndex;
@@ -167,6 +174,24 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
 
   // ── Player ────────────────────────────────────────────────────────────────
 
+  /// Asks the API how to play a video. Returns a map with `hlsUrl` (adaptive) or
+  /// `mp4Url` (direct play), or null if the endpoint is unavailable — in which
+  /// case the caller falls back to the older stream-url route.
+  Future<Map<String, dynamic>?> _fetchPlaybackInfo(String videoId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/video-processing/playback/$videoId'),
+        headers: {'Authorization': 'Bearer ${widget.token}'},
+      ).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body);
+      final data = (body is Map && body['data'] != null) ? body['data'] : body;
+      return data is Map<String, dynamic> ? data : null;
+    } catch (_) {
+      return null; // offline or old API — let the caller decide what to do
+    }
+  }
+
   Future<String> _resolveStreamUrl(String streamUrl) async {
     try {
       final client = HttpClient();
@@ -203,14 +228,57 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
     });
 
     try {
+      // 1. Offline first: a downloaded lesson plays from disk and uses no data,
+      //    which also means it still works with no connection at all.
+      final lessonId = _lesson['id']?.toString() ?? '';
+      final localPath = lessonId.isEmpty
+          ? null
+          : await DownloadManager.instance.localPath(lessonId);
+
+      if (localPath != null) {
+        _vpc = VideoPlayerController.file(File(localPath));
+        await _vpc!.initialize();
+        _vpc!.addListener(_onTick);
+        _rebuildChewie();
+        _startProgressTimer();
+        if (mounted) {
+          setState(() {
+            _initializing = false;
+            _playingOffline = true;
+          });
+        }
+        return;
+      }
+
       final String url;
       final Map<String, String> headers;
 
       if (_isReady) {
-        final streamUrl =
-            '${ApiConstants.baseUrl}${ApiConstants.videoStream(_lesson['videoId'].toString())}?quality=${quality ?? _quality}';
-        url = await _resolveStreamUrl(streamUrl);
-        headers = {};
+        // 2. Online: ask the API how to play it. When the video has renditions we
+        //    get an adaptive HLS master playlist, so the player drops to a lower
+        //    quality on a weak connection instead of stalling. The playback token
+        //    rides in the URL — no auth header, which would otherwise be rejected
+        //    by the presigned segment URLs.
+        final info = await _fetchPlaybackInfo(_lesson['videoId'].toString());
+        final adaptiveUrl = info?['hlsUrl'] as String?;
+        final directUrl = info?['mp4Url'] as String?;
+
+        if (adaptiveUrl != null && adaptiveUrl.isNotEmpty) {
+          url = adaptiveUrl;
+          headers = {};
+          _adaptive = true;
+        } else if (directUrl != null && directUrl.isNotEmpty) {
+          url = directUrl;
+          headers = {};
+          _adaptive = false;
+        } else {
+          // Fallback for older builds of the API.
+          final streamUrl =
+              '${ApiConstants.baseUrl}${ApiConstants.videoStream(_lesson['videoId'].toString())}?quality=${quality ?? _quality}';
+          url = await _resolveStreamUrl(streamUrl);
+          headers = {};
+          _adaptive = false;
+        }
       } else if (!_hasVideo &&
           (_lesson['videoUrl']?.toString() ?? '').trim().isNotEmpty) {
         url = _lesson['videoUrl'].toString().trim();
@@ -223,6 +291,7 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
         return;
       }
 
+      _playingOffline = false;
       _vpc = VideoPlayerController.networkUrl(Uri.parse(url),
           httpHeaders: headers);
       await _vpc!.initialize();
@@ -748,39 +817,70 @@ class _CoursePlayerBodyState extends State<_CoursePlayerBody>
         ],
       ),
       actions: [
+        // Save this lesson for offline study.
+        if (_hasVideo)
+          DownloadButton(
+            key: ValueKey('dl-${_lesson['id']}'),
+            lessonId: _lesson['id']?.toString() ?? '',
+            videoId: _lesson['videoId']?.toString(),
+            lessonTitle: _lesson['title']?.toString() ?? 'Lesson',
+            courseId: widget.courseId,
+            courseTitle: widget.courseTitle,
+            compact: true,
+          ),
         IconButton(
           icon: const Icon(Icons.picture_in_picture_alt, size: 20),
           tooltip: 'System PiP',
           onPressed: _enterPip,
         ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.hd_rounded, size: 20, color: Colors.white70),
-          tooltip: 'Quality',
-          color: const Color(0xFF1A1A2E),
-          onSelected: _switchQuality,
-          itemBuilder: (_) => _qualities
-              .map((q) => PopupMenuItem<String>(
-                    value: q,
-                    child: Row(children: [
-                      Icon(
-                        _quality == q
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                        size: 16,
-                        color:
-                            _quality == q ? _kAccent : Colors.white54,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(q,
-                          style: TextStyle(
-                              color: _quality == q
-                                  ? Colors.white
-                                  : Colors.white70,
-                              fontSize: 14)),
-                    ]),
-                  ))
-              .toList(),
-        ),
+        // Playing from disk, or the player is choosing quality itself — either
+        // way a manual quality picker would do nothing, so show status instead.
+        if (_playingOffline)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Tooltip(
+              message: 'Playing offline — no data used',
+              child: Icon(Icons.offline_pin_rounded, size: 20, color: Colors.green),
+            ),
+          )
+        else if (_adaptive)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Tooltip(
+              message: 'Auto quality — adjusts to your connection',
+              child: Icon(Icons.auto_awesome_motion_rounded,
+                  size: 20, color: Colors.white70),
+            ),
+          )
+        else
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.hd_rounded, size: 20, color: Colors.white70),
+            tooltip: 'Quality',
+            color: const Color(0xFF1A1A2E),
+            onSelected: _switchQuality,
+            itemBuilder: (_) => _qualities
+                .map((q) => PopupMenuItem<String>(
+                      value: q,
+                      child: Row(children: [
+                        Icon(
+                          _quality == q
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off,
+                          size: 16,
+                          color:
+                              _quality == q ? _kAccent : Colors.white54,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(q,
+                            style: TextStyle(
+                                color: _quality == q
+                                    ? Colors.white
+                                    : Colors.white70,
+                                fontSize: 14)),
+                      ]),
+                    ))
+                .toList(),
+          ),
         const SizedBox(width: 4),
       ],
     );
