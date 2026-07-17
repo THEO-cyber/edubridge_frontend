@@ -44,7 +44,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
         studentId: e['studentId'] ?? '',
         courseId: e['courseId'] ?? '',
         amount: (e['amount'] ?? 0).toDouble(),
-        currency: e['currency'] ?? 'USD',
+        currency: e['currency'] ?? 'XAF',
         status: status,
         createdAt: DateTime.parse(e['createdAt'] ?? DateTime.now().toString()),
         completedAt: e['completedAt'] != null
@@ -76,7 +76,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
         studentId: data['studentId'] ?? '',
         courseId: data['courseId'] ?? '',
         amount: (data['amount'] ?? 0).toDouble(),
-        currency: data['currency'] ?? 'USD',
+        currency: data['currency'] ?? 'XAF',
         status: status,
         createdAt: DateTime.parse(
           data['createdAt'] ?? DateTime.now().toString(),

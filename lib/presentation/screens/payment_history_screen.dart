@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/secure_storage.dart';
+import '../../core/money.dart';
 import '../../data/datasources/payment_remote_data_source.dart';
 
 const _kNavy = Color(0xFF1A237E);
@@ -110,7 +111,7 @@ class _PaymentList extends StatelessWidget {
               Expanded(
                 child: _SummaryItem(
                   label: 'Total Spent',
-                  value: '\$${total.toStringAsFixed(2)}',
+                  value: Money.xaf(total),
                   icon: Icons.payments_rounded,
                 ),
               ),
@@ -218,10 +219,9 @@ class _PaymentCard extends StatelessWidget {
 
   String get _amount {
     final raw = payment['amount'] ?? payment['finalAmount'] ?? 0;
-    final num value = raw is num ? raw : 0;
-    // Backend may store in cents
-    final display = value > 100 ? value / 100 : value;
-    return '\$${display.toStringAsFixed(2)}';
+    final num value = raw is num ? raw : num.tryParse('$raw') ?? 0;
+    // XAF is zero-decimal — amounts are stored as whole francs, not cents.
+    return Money.xaf(value);
   }
 
   @override

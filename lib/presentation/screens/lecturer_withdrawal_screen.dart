@@ -439,11 +439,11 @@ class _RequestTab extends StatelessWidget {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Amount (\$)',
+                  labelText: 'Amount (FCFA)',
                   prefixIcon: const Icon(Icons.payments_outlined),
                   suffixIcon: TextButton(
                     onPressed: () =>
-                        amountCtrl.text = maxAmount.toStringAsFixed(2),
+                        amountCtrl.text = maxAmount.toStringAsFixed(0),
                     child: const Text('MAX',
                         style: TextStyle(
                             color: _kPrimary, fontWeight: FontWeight.bold)),

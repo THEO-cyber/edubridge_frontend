@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/secure_storage.dart';
+import '../../core/money.dart';
 import '../../data/datasources/admin_remote_data_source.dart';
 
 const _kNavy = Color(0xFF1A237E);
@@ -206,7 +207,7 @@ class _StatsTabState extends State<_StatsTab> {
     final cards = [
       ('Total Users', _stats['totalUsers'] ?? _stats['users'] ?? 0, Icons.people, Colors.blue),
       ('Courses', _stats['totalCourses'] ?? _stats['courses'] ?? 0, Icons.menu_book, Colors.green),
-      ('Revenue', '\$${(_stats['totalRevenue'] ?? 0).toString()}', Icons.attach_money, Colors.orange),
+      ('Revenue', Money.xaf(_stats['totalRevenue'] ?? 0), Icons.attach_money, Colors.orange),
       ('Enrollments', _stats['totalEnrollments'] ?? _stats['enrollments'] ?? 0, Icons.school, Colors.purple),
       ('Instructors', _stats['totalInstructors'] ?? _stats['instructors'] ?? 0, Icons.person_pin, Colors.teal),
       ('Students', _stats['totalStudents'] ?? _stats['students'] ?? 0, Icons.people_alt, Colors.indigo),
@@ -1737,7 +1738,7 @@ class _CouponsTabState extends State<_CouponsTab> {
                           ),
                           title: Text(code, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
                           subtitle: Text(
-                            '${type == 'percentage' ? '$value%' : '\$$value'} off • Used $uses/$max',
+                            '${type == 'percentage' ? '$value%' : Money.xaf(value is num ? value : num.tryParse('$value') ?? 0)} off • Used $uses/$max',
                             style: const TextStyle(fontSize: 12),
                           ),
                           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1836,7 +1837,7 @@ class _PayoutsAdminTabState extends State<_PayoutsAdminTab> {
               title: Text(name.isEmpty ? 'Instructor' : name, style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: date.isNotEmpty ? Text(date, style: const TextStyle(fontSize: 11)) : null,
               trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text('\$${amount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(Money.xaf(amount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 _Chip(status, statusColor),
               ]),
             ),

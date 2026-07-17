@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/secure_storage.dart';
+import '../../core/money.dart';
 import '../../data/datasources/auth_remote_data_source.dart';
 import '../../data/datasources/payment_remote_data_source.dart';
 import '../../data/datasources/profile_remote_data_source.dart';
@@ -286,12 +287,13 @@ class _LecturerEarningsScreenState extends State<LecturerEarningsScreen> {
   String _formatMoney(dynamic value) {
     final amount = double.tryParse(value.toString()) ?? 0;
     if (amount >= 1000000) {
-      return 'FCFA ${(amount / 1000000).toStringAsFixed(2)}M';
+      return '${(amount / 1000000).toStringAsFixed(2)}M FCFA';
     }
     if (amount >= 1000) {
-      return 'FCFA ${(amount / 1000).toStringAsFixed(1)}K';
+      return '${(amount / 1000).toStringAsFixed(1)}K FCFA';
     }
-    return 'FCFA ${amount.toStringAsFixed(2)}';
+    // XAF is zero-decimal — no cents.
+    return Money.xaf(amount);
   }
 }
 
@@ -364,7 +366,7 @@ class _CourseRevenueCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis),
               const Spacer(),
               Text(
-                'FCFA ${double.tryParse(revenue.toString())?.toStringAsFixed(0) ?? "0"}',
+                Money.xaf(double.tryParse(revenue.toString()) ?? 0),
                 style: const TextStyle(
                     color: Colors.green,
                     fontWeight: FontWeight.bold,
@@ -458,7 +460,7 @@ class _TransactionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  'FCFA ${amount.toStringAsFixed(2)}',
+                  Money.xaf(amount),
                   style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,

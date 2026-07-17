@@ -17,7 +17,7 @@ class PaymentEntity {
     required this.studentId,
     required this.courseId,
     required this.amount,
-    this.currency = 'USD',
+    this.currency = 'XAF',
     this.status = PaymentStatus.pending,
     required this.createdAt,
     this.completedAt,

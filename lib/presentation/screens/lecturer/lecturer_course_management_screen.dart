@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import '../../../constants/api_constants.dart';
 import '../../../core/cache/app_cache.dart';
 import '../../../core/secure_storage.dart';
+import '../../../core/money.dart';
 import '../../widgets/shimmer_widgets.dart';
 import '../../../data/datasources/course_remote_data_source.dart';
 import '../../../data/datasources/lesson_remote_data_source.dart';
@@ -731,7 +732,7 @@ class _CourseCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        coursePrice == 0 ? 'Free' : '\$${coursePrice.toStringAsFixed(2)}',
+                        coursePrice == 0 ? 'Free' : Money.xaf(coursePrice),
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                     ),
@@ -1014,7 +1015,7 @@ class _CourseFormSheetState extends State<_CourseFormSheet> {
       'requirements': _requirements,
       'objectives': _objectives,
       'price': _isFree ? 0 : (double.tryParse(_priceCtrl.text.trim()) ?? 0),
-      if (!_isFree) 'currency': 'USD',
+      if (!_isFree) 'currency': 'XAF',
       if (thumb.isNotEmpty) 'thumbnailUrl': thumb,
     };
     Navigator.of(context).pop(data);
@@ -1332,9 +1333,9 @@ class _CourseFormSheetState extends State<_CourseFormSheet> {
                 margin: const EdgeInsets.all(10),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(color: const Color(0xFFE0F2F1), borderRadius: BorderRadius.circular(8)),
-                child: const Text('USD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00695C))),
+                child: const Text('FCFA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00695C))),
               ),
-              hintText: '0.00',
+              hintText: '0',
               hintStyle: TextStyle(color: Colors.grey[400], fontSize: 20, fontWeight: FontWeight.bold),
               filled: true,
               fillColor: const Color(0xFFE8F5E9),
