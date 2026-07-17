@@ -59,20 +59,8 @@ class AuthRemoteDataSource {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body);
       }
-      String errorMsg = 'Failed to register';
-      try {
-        final b = jsonDecode(response.body);
-        if (b is Map) {
-          if (b['message'] is String && b['message'].toString().isNotEmpty) {
-            errorMsg = b['message'] as String;
-          } else if (b['error'] is String && b['error'].toString().isNotEmpty) {
-            errorMsg = b['error'] as String;
-          } else if (b['errors'] is List && (b['errors'] as List).isNotEmpty) {
-            errorMsg = (b['errors'] as List).join(', ');
-          }
-        }
-      } catch (_) {}
-      throw Exception(errorMsg);
+      throw Exception(apiErrorMessage(response.body, response.statusCode,
+          fallback: 'Failed to register'));
     } catch (e) {
       if (e is Exception && e.toString().startsWith('Exception: ')) rethrow;
       throw Exception(networkErrorMessage(e));

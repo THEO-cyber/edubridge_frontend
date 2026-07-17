@@ -161,3 +161,44 @@ String networkErrorMessage(Object e) {
   }
   return e.toString().replaceFirst('Exception: ', '');
 }
+
+/// Turns an API error body into something worth showing a person.
+///
+/// The API reports field problems as `{ message: "Validation failed", errors: [...] }`.
+/// The useful part is `errors`, so it is read first — checking `message` first
+/// tells a learner only that something "failed", never what to change.
+String apiErrorMessage(String body, int statusCode, {String fallback = 'Something went wrong'}) {
+  try {
+    final b = jsonDecode(body);
+    if (b is Map) {
+      final errors = b['errors'];
+      if (errors is List && errors.isNotEmpty) {
+        return errors.map((e) => e is Map ? (e['message'] ?? e).toString() : e.toString()).join('\n');
+      }
+      final msg = b['message'] ?? b['error'];
+      if (msg is List && msg.isNotEmpty) return msg.join('\n');
+      if (msg is String && msg.isNotEmpty && msg.toLowerCase() != 'validation failed') {
+        return msg;
+      }
+    }
+  } catch (_) {
+    // not JSON — fall through to a status-based message
+  }
+
+  switch (statusCode) {
+    case 401:
+      return 'Your email or password is incorrect.';
+    case 403:
+      return "You don't have access to this.";
+    case 404:
+      return "We couldn't find what you were looking for.";
+    case 409:
+      return 'That already exists.';
+    case 429:
+      return 'Too many attempts. Please wait a moment and try again.';
+    default:
+      return statusCode >= 500
+          ? 'EduBridge is having a problem right now. Please try again shortly.'
+          : fallback;
+  }
+}
