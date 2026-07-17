@@ -20,13 +20,14 @@ class _InstructorApplicationScreenState
   Map<String, dynamic>? _existingApp;
   String? _statusError;
 
-  // Form controllers
-  final _expertiseCtrl = TextEditingController();
-  final _bioCtrl = TextEditingController();
+  // Form controllers — field names mirror the backend SubmitApplicationDto:
+  // motivation (required), subjectExpertise (required list), teachingExperience,
+  // sampleContentUrl, linkedinUrl.
+  final _motivationCtrl = TextEditingController();
+  final _subjectsCtrl = TextEditingController();
   final _experienceCtrl = TextEditingController();
+  final _sampleCtrl = TextEditingController();
   final _linkedinCtrl = TextEditingController();
-  final _websiteCtrl = TextEditingController();
-  String _category = '';
   bool _submitting = false;
 
   @override
@@ -37,11 +38,11 @@ class _InstructorApplicationScreenState
 
   @override
   void dispose() {
-    _expertiseCtrl.dispose();
-    _bioCtrl.dispose();
+    _motivationCtrl.dispose();
+    _subjectsCtrl.dispose();
     _experienceCtrl.dispose();
+    _sampleCtrl.dispose();
     _linkedinCtrl.dispose();
-    _websiteCtrl.dispose();
     super.dispose();
   }
 
@@ -94,10 +95,15 @@ class _InstructorApplicationScreenState
   }
 
   Future<void> _submit() async {
-    if (_expertiseCtrl.text.trim().isEmpty ||
-        _bioCtrl.text.trim().isEmpty ||
-        _experienceCtrl.text.trim().isEmpty) {
-      _snack('Expertise, bio and experience are required', Colors.orange);
+    final subjects = _subjectsCtrl.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (_motivationCtrl.text.trim().isEmpty || subjects.isEmpty) {
+      _snack('Please share your motivation and at least one subject you can teach.',
+          Colors.orange);
       return;
     }
 
@@ -109,27 +115,26 @@ class _InstructorApplicationScreenState
             '${ApiConstants.baseUrl}${ApiConstants.instructorApplication}'),
         headers: h,
         body: jsonEncode({
-          'expertise': _expertiseCtrl.text.trim(),
-          'bio': _bioCtrl.text.trim(),
-          'experience': _experienceCtrl.text.trim(),
-          if (_category.isNotEmpty) 'category': _category,
+          'motivation': _motivationCtrl.text.trim(),
+          'subjectExpertise': subjects,
+          if (_experienceCtrl.text.trim().isNotEmpty)
+            'teachingExperience': _experienceCtrl.text.trim(),
+          if (_sampleCtrl.text.trim().isNotEmpty)
+            'sampleContentUrl': _sampleCtrl.text.trim(),
           if (_linkedinCtrl.text.trim().isNotEmpty)
             'linkedinUrl': _linkedinCtrl.text.trim(),
-          if (_websiteCtrl.text.trim().isNotEmpty)
-            'websiteUrl': _websiteCtrl.text.trim(),
         }),
       );
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        _snack('Application submitted! We will review it within 2-3 business days.', Colors.green);
+        _snack('Application submitted! We will review it within 2-3 business days.',
+            Colors.green);
         await _checkStatus();
       } else {
-        String msg = 'Failed to submit application';
-        try {
-          final b = jsonDecode(res.body);
-          if (b is Map) msg = (b['message'] ?? b['error'] ?? msg).toString();
-        } catch (_) {}
-        _snack(msg, Colors.red);
+        _snack(
+            apiErrorMessage(res.body, res.statusCode,
+                fallback: 'Failed to submit application'),
+            Colors.red);
       }
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''), Colors.red);
@@ -164,13 +169,11 @@ class _InstructorApplicationScreenState
               : _existingApp != null
                   ? _StatusView(app: _existingApp!, onRefresh: _checkStatus)
                   : _ApplicationForm(
-                      expertiseCtrl: _expertiseCtrl,
-                      bioCtrl: _bioCtrl,
+                      motivationCtrl: _motivationCtrl,
+                      subjectsCtrl: _subjectsCtrl,
                       experienceCtrl: _experienceCtrl,
+                      sampleCtrl: _sampleCtrl,
                       linkedinCtrl: _linkedinCtrl,
-                      websiteCtrl: _websiteCtrl,
-                      category: _category,
-                      onCategoryChanged: (v) => setState(() => _category = v),
                       submitting: _submitting,
                       onSubmit: _submit,
                     ),
@@ -188,9 +191,16 @@ class _StatusView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = (app['status'] ?? 'pending').toString().toLowerCase();
-    final submittedAt = (app['createdAt'] ?? app['submittedAt'] ?? '').toString().split('T').first;
-    final reviewedAt = (app['reviewedAt'] ?? app['updatedAt'] ?? '').toString().split('T').first;
+    final submittedAt =
+        (app['createdAt'] ?? app['submittedAt'] ?? '').toString().split('T').first;
+    final reviewedAt =
+        (app['reviewedAt'] ?? app['updatedAt'] ?? '').toString().split('T').first;
     final reason = (app['rejectionReason'] ?? app['reason'] ?? '').toString();
+
+    final subjectsRaw = app['subjectExpertise'];
+    final subjects = subjectsRaw is List
+        ? subjectsRaw.join(', ')
+        : (subjectsRaw ?? '').toString();
 
     Color statusColor;
     IconData statusIcon;
@@ -202,15 +212,16 @@ class _StatusView extends StatelessWidget {
         statusColor = Colors.green;
         statusIcon = Icons.check_circle;
         statusTitle = 'Application Approved!';
-        statusMessage = 'Congratulations! Your instructor application has been approved. '
-            'You can now create and publish courses.';
+        statusMessage =
+            'Congratulations! Your instructor application has been approved. '
+            'Log out and back in to unlock the course creation tools.';
         break;
       case 'rejected':
         statusColor = Colors.red;
         statusIcon = Icons.cancel;
         statusTitle = 'Application Rejected';
         statusMessage = 'Unfortunately your application was not approved at this time. '
-            'You may reapply after 30 days.';
+            'You may update your details and reapply.';
         break;
       default:
         statusColor = Colors.orange;
@@ -301,10 +312,10 @@ class _StatusView extends StatelessWidget {
               const Text('Your Application',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
               const SizedBox(height: 12),
-              _DetailRow('Expertise', app['expertise'] ?? ''),
-              if ((app['category'] ?? '').toString().isNotEmpty)
-                _DetailRow('Category', app['category'].toString()),
-              _DetailRow('Experience', app['experience'] ?? ''),
+              _DetailRow('Subjects', subjects),
+              _DetailRow('Motivation', (app['motivation'] ?? '').toString()),
+              _DetailRow(
+                  'Experience', (app['teachingExperience'] ?? '').toString()),
             ]),
           ),
         ),
@@ -365,24 +376,20 @@ class _DetailRow extends StatelessWidget {
 // ── Application form ──────────────────────────────────────────────────────────
 
 class _ApplicationForm extends StatelessWidget {
-  final TextEditingController expertiseCtrl;
-  final TextEditingController bioCtrl;
+  final TextEditingController motivationCtrl;
+  final TextEditingController subjectsCtrl;
   final TextEditingController experienceCtrl;
+  final TextEditingController sampleCtrl;
   final TextEditingController linkedinCtrl;
-  final TextEditingController websiteCtrl;
-  final String category;
-  final void Function(String) onCategoryChanged;
   final bool submitting;
   final VoidCallback onSubmit;
 
   const _ApplicationForm({
-    required this.expertiseCtrl,
-    required this.bioCtrl,
+    required this.motivationCtrl,
+    required this.subjectsCtrl,
     required this.experienceCtrl,
+    required this.sampleCtrl,
     required this.linkedinCtrl,
-    required this.websiteCtrl,
-    required this.category,
-    required this.onCategoryChanged,
     required this.submitting,
     required this.onSubmit,
   });
@@ -411,7 +418,8 @@ class _ApplicationForm extends StatelessWidget {
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 8),
             const Text(
-              'Share your knowledge and earn revenue by creating courses on EduBridge.',
+              'Share your knowledge and earn revenue by creating courses on EduBridge. '
+              'Every instructor is vetted to keep quality high.',
               style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
             ),
           ]),
@@ -428,48 +436,25 @@ class _ApplicationForm extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 16),
 
-              _field(expertiseCtrl, 'Area of Expertise *',
-                  hint: 'e.g. Machine Learning, Web Development, Photography'),
+              _field(motivationCtrl, 'Why do you want to teach on EduBridge? *',
+                  hint: 'Share your motivation for teaching…', maxLines: 4),
               const SizedBox(height: 14),
 
-              DropdownButtonFormField<String>(
-                initialValue: category.isEmpty ? null : category,
-                decoration: const InputDecoration(
-                    labelText: 'Teaching Category',
-                    border: OutlineInputBorder(),
-                    isDense: true),
-                onChanged: (v) => onCategoryChanged(v ?? ''),
-                hint: const Text('Select a category (optional)'),
-                items: const [
-                  DropdownMenuItem(value: 'technology', child: Text('Technology')),
-                  DropdownMenuItem(value: 'business', child: Text('Business')),
-                  DropdownMenuItem(value: 'design', child: Text('Design')),
-                  DropdownMenuItem(value: 'marketing', child: Text('Marketing')),
-                  DropdownMenuItem(value: 'science', child: Text('Science')),
-                  DropdownMenuItem(value: 'arts', child: Text('Arts & Humanities')),
-                  DropdownMenuItem(value: 'language', child: Text('Language')),
-                  DropdownMenuItem(value: 'health', child: Text('Health & Fitness')),
-                  DropdownMenuItem(value: 'other', child: Text('Other')),
-                ],
-              ),
+              _field(subjectsCtrl, 'Subjects you can teach (comma-separated) *',
+                  hint: 'e.g. Web Development, Python, Machine Learning'),
               const SizedBox(height: 14),
 
-              _field(bioCtrl, 'Professional Bio *',
-                  hint: 'Tell students about your background and achievements…',
-                  maxLines: 4),
-              const SizedBox(height: 14),
-
-              _field(experienceCtrl, 'Teaching / Work Experience *',
+              _field(experienceCtrl, 'Teaching / work experience',
                   hint: 'Describe your experience teaching or working in your field…',
                   maxLines: 4),
               const SizedBox(height: 14),
 
-              _field(linkedinCtrl, 'LinkedIn Profile URL',
-                  hint: 'https://linkedin.com/in/yourprofile'),
+              _field(sampleCtrl, 'Sample lesson / portfolio URL',
+                  hint: 'https://…'),
               const SizedBox(height: 14),
 
-              _field(websiteCtrl, 'Personal / Portfolio Website',
-                  hint: 'https://yourwebsite.com'),
+              _field(linkedinCtrl, 'LinkedIn profile URL',
+                  hint: 'https://linkedin.com/in/yourprofile'),
               const SizedBox(height: 8),
 
               Text(
@@ -514,7 +499,7 @@ class _ApplicationForm extends StatelessWidget {
               const Text('What happens next?',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 12),
-              _NextStep('1', 'Submit your application with your expertise and bio'),
+              _NextStep('1', 'Submit your application with your motivation and subjects'),
               _NextStep('2', 'Our team reviews your application within 2-3 business days'),
               _NextStep('3', 'You receive an email with the decision'),
               _NextStep('4', 'Approved instructors gain access to the course creation tools'),

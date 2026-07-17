@@ -39,12 +39,14 @@ class AuthRemoteDataSource {
     String firstName,
     String lastName,
   ) async {
+    // NOTE: do NOT send a top-level `name` — the backend maps an incoming
+    // `name` onto `username` (via @Expose), which would overwrite the chosen
+    // username with the full name (e.g. "John Doe").
     final bodyMap = {
       'email': email,
       'password': password,
       'role': role.toUpperCase(),
       'username': username,
-      'name': '$firstName $lastName',
       'firstName': firstName,
       'lastName': lastName,
       'first_name': firstName,

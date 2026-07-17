@@ -34,21 +34,33 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
             ).showSnackBar(SnackBar(content: Text(state.message)));
           } else if (state is AuthSuccess) {
             final normalizedRole = state.user.role.toLowerCase();
-            if (normalizedRole == 'lecturer' ||
+            final alreadyInstructor = normalizedRole == 'lecturer' ||
                 normalizedRole == 'teacher' ||
                 normalizedRole == 'instructor' ||
-                normalizedRole == 'admin') {
+                normalizedRole == 'admin';
+            if (alreadyInstructor) {
               await SecureStorage.saveRole('instructor');
               if (context.mounted) {
                 Navigator.pushNamedAndRemoveUntil(
                     context, '/lecturer-dashboard', (_) => false);
               }
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Access denied: Not a lecturer account'),
-                ),
-              );
+              // Vetted onboarding: signing up creates a student account. To
+              // teach, the new user submits an instructor application that an
+              // admin reviews — so send them straight to that form.
+              await SecureStorage.saveRole('student');
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'Account created! Tell us about your teaching to apply.'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                Navigator.pushNamedAndRemoveUntil(
+                    context, '/student-dashboard', (_) => false);
+                Navigator.pushNamed(context, '/instructor-application');
+              }
             }
           }
         },
