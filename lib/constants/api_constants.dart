@@ -166,6 +166,7 @@ class ApiConstants {
 
   // Instructor Applications
   static const String instructorApplication = '/applications/instructor';
+  static const String instructorApplyPublic = '/applications/instructor/apply';
   static const String myInstructorApplication = '/applications/instructor/mine';
 
   // Payouts

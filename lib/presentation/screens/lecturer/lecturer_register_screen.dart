@@ -1,16 +1,16 @@
-import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../core/secure_storage.dart';
-import '../../blocs/auth_bloc.dart';
+import '../../../constants/api_constants.dart';
+import '../../../core/http_utils.dart';
 
 const _kNavy = Color(0xFF1A237E);
 const _kBlue = Color(0xFF1976D2);
 
-/// Instructor sign-up. Kept consistent with the web `/teach/register` screen:
-/// the same fields (name, email, password, confirm), the same live password
-/// checklist, and the same vetted "step 1 of 2" framing — a learner account is
-/// created, then the new user is routed into the instructor application form.
+/// Instructor application — kept consistent with the web `/teach/register`.
+/// This is a single public step: the applicant provides their account details
+/// AND their teaching credentials, but NO account is created here. An admin
+/// reviews the application, and the account is provisioned only on approval —
+/// so the database isn't filled with dormant accounts.
 class LecturerRegisterScreen extends StatefulWidget {
   const LecturerRegisterScreen({super.key});
 
@@ -24,21 +24,37 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  final motivationController = TextEditingController();
+  final subjectsController = TextEditingController();
+  final experienceController = TextEditingController();
+  final sampleController = TextEditingController();
+  final linkedinController = TextEditingController();
+
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
+  bool _submitting = false;
+  bool _submitted = false;
 
   @override
   void dispose() {
-    firstNameController.dispose();
-    lastNameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
-    confirmPasswordController.dispose();
+    for (final c in [
+      firstNameController,
+      lastNameController,
+      emailController,
+      passwordController,
+      confirmPasswordController,
+      motivationController,
+      subjectsController,
+      experienceController,
+      sampleController,
+      linkedinController,
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  // Mirrors the API's password policy, shown live so an applicant sees what is
-  // required while typing rather than discovering it from a rejection.
+  // Mirrors the API's password policy, shown live.
   static final List<({String label, bool Function(String) test})> _rules = [
     (label: '8+ characters', test: (p) => p.length >= 8),
     (label: 'A capital letter', test: (p) => RegExp(r'[A-Z]').hasMatch(p)),
@@ -47,24 +63,20 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
     (label: 'A symbol (!@#…)', test: (p) => RegExp(r'[\W_]').hasMatch(p)),
   ];
 
-  bool get _passwordOk =>
-      _rules.every((r) => r.test(passwordController.text));
+  bool get _passwordOk => _rules.every((r) => r.test(passwordController.text));
   bool get _matches =>
       passwordController.text == confirmPasswordController.text;
 
-  String _generateUsername(String email) {
-    final base = email.split('@').first.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
-    final safe = base.isEmpty ? 'user' : base;
-    return '$safe${1000 + Random().nextInt(9000)}';
-  }
+  Future<void> _submit() async {
+    final subjects = subjectsController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
-  void _submit() {
-    final firstName = firstNameController.text.trim();
-    final lastName = lastNameController.text.trim();
-    final email = emailController.text.trim();
-    final password = passwordController.text;
-
-    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty) {
+    if (firstNameController.text.trim().isEmpty ||
+        lastNameController.text.trim().isEmpty ||
+        emailController.text.trim().isEmpty) {
       _snack('Please fill in your name and email.');
       return;
     }
@@ -76,20 +88,48 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
       _snack('Both passwords must be the same.');
       return;
     }
+    if (motivationController.text.trim().isEmpty || subjects.isEmpty) {
+      _snack('Please share your motivation and at least one subject.');
+      return;
+    }
 
-    context.read<AuthBloc>().add(
-          RegisterEvent(
-            email,
-            password,
-            'INSTRUCTOR',
-            _generateUsername(email),
-            firstName,
-            lastName,
-          ),
-        );
+    setState(() => _submitting = true);
+    try {
+      final res = await apiPost(
+        Uri.parse(
+            '${ApiConstants.baseUrl}${ApiConstants.instructorApplyPublic}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': emailController.text.trim(),
+          'firstName': firstNameController.text.trim(),
+          'lastName': lastNameController.text.trim(),
+          'password': passwordController.text,
+          'motivation': motivationController.text.trim(),
+          'subjectExpertise': subjects,
+          if (experienceController.text.trim().isNotEmpty)
+            'teachingExperience': experienceController.text.trim(),
+          if (sampleController.text.trim().isNotEmpty)
+            'sampleContentUrl': sampleController.text.trim(),
+          if (linkedinController.text.trim().isNotEmpty)
+            'linkedinUrl': linkedinController.text.trim(),
+        }),
+      );
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        if (mounted) setState(() => _submitted = true);
+      } else {
+        _snack(apiErrorMessage(res.body, res.statusCode,
+            fallback: 'Could not submit your application.'));
+      }
+    } catch (e) {
+      _snack(networkErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   void _snack(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
@@ -97,246 +137,253 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: BlocConsumer<AuthBloc, AuthState>(
-        listener: (context, state) async {
-          if (state is AuthFailure) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(state.message)));
-          } else if (state is AuthSuccess) {
-            final normalizedRole = state.user.role.toLowerCase();
-            final alreadyInstructor = normalizedRole == 'lecturer' ||
-                normalizedRole == 'teacher' ||
-                normalizedRole == 'instructor' ||
-                normalizedRole == 'admin';
-            if (alreadyInstructor) {
-              await SecureStorage.saveRole('instructor');
-              if (context.mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                    context, '/lecturer-dashboard', (_) => false);
-              }
-            } else {
-              // Vetted onboarding: signing up creates a learner account. To
-              // teach, the new user submits an instructor application that an
-              // admin reviews — so send them straight to that form.
-              await SecureStorage.saveRole('student');
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                        'Account created! Tell us about your teaching to apply.'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-                Navigator.pushNamedAndRemoveUntil(
-                    context, '/student-dashboard', (_) => false);
-                Navigator.pushNamed(context, '/instructor-application');
-              }
-            }
-          }
-        },
-        builder: (context, state) {
-          final isLoading = state is AuthLoading;
-          return SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Hero ──────────────────────────────────────────────
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [_kNavy, _kBlue],
-                      ),
-                      borderRadius: BorderRadius.only(
-                        bottomLeft: Radius.circular(24),
-                        bottomRight: Radius.circular(24),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text('Teach on EduBridge',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                        const SizedBox(height: 14),
-                        const Text(
-                          'Create your instructor account',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Set up your account, then complete a short application. '
-                          'Every instructor is vetted to keep quality high — once '
-                          'approved you can create courses and earn in FCFA via '
-                          'MoMo & Orange Money.',
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              fontSize: 13,
-                              height: 1.45),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Form ──────────────────────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Sign up to teach',
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 4),
-                        Text('Step 1 of 2 — create your account.',
-                            style: TextStyle(
-                                color: Colors.blueGrey.shade500, fontSize: 13)),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _field(firstNameController, 'First Name',
-                                  hint: 'Ada',
-                                  icon: Icons.person_outline,
-                                  cap: TextCapitalization.words),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _field(lastNameController, 'Last Name',
-                                  hint: 'Lovelace',
-                                  icon: Icons.person_outline,
-                                  cap: TextCapitalization.words),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _field(emailController, 'Email Address',
-                            hint: 'you@example.com',
-                            icon: Icons.email_outlined,
-                            keyboard: TextInputType.emailAddress),
-                        const SizedBox(height: 16),
-                        _passwordField(
-                          passwordController,
-                          'Password',
-                          hint: 'Create a strong password',
-                          obscure: obscurePassword,
-                          onToggle: () => setState(
-                              () => obscurePassword = !obscurePassword),
-                        ),
-                        const SizedBox(height: 12),
-                        _passwordChecklist(),
-                        const SizedBox(height: 16),
-                        _passwordField(
-                          confirmPasswordController,
-                          'Confirm Password',
-                          hint: 'Type it again',
-                          obscure: obscureConfirmPassword,
-                          onToggle: () => setState(() =>
-                              obscureConfirmPassword = !obscureConfirmPassword),
-                        ),
-                        if (confirmPasswordController.text.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(
-                                  _matches
-                                      ? Icons.check_circle
-                                      : Icons.error_outline,
-                                  size: 15,
-                                  color: _matches
-                                      ? Colors.green
-                                      : Colors.red.shade400),
-                              const SizedBox(width: 6),
-                              Text(
-                                _matches
-                                    ? 'Passwords match'
-                                    : "Passwords don't match yet",
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: _matches
-                                        ? Colors.green
-                                        : Colors.red.shade400),
-                              ),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed:
-                                (isLoading || !_passwordOk || !_matches)
-                                    ? null
-                                    : _submit,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _kNavy,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor:
-                                  _kNavy.withValues(alpha: 0.4),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: isLoading
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white))
-                                : const Text('Create account & continue',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16)),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Center(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text('Already have an account? ',
-                                  style: TextStyle(
-                                      color: Colors.blueGrey.shade600,
-                                      fontSize: 14)),
-                              TextButton(
-                                onPressed: () => Navigator.pushNamed(
-                                    context, '/lecturer-login'),
-                                child: const Text('Log in',
-                                    style: TextStyle(
-                                        color: _kNavy,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+      body: SafeArea(
+        child: _submitted ? _buildSubmitted() : _buildForm(),
       ),
     );
   }
+
+  Widget _buildSubmitted() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                  color: Color(0xFFE8F5E9), shape: BoxShape.circle),
+              child: const Icon(Icons.check_rounded,
+                  color: Colors.green, size: 40),
+            ),
+            const SizedBox(height: 20),
+            const Text('Application submitted',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text(
+              'Thanks for applying! We review every application to keep quality '
+              'high, and will email ${emailController.text.trim()} once a '
+              'decision is made. If approved, just log in with the password you '
+              'set here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.blueGrey.shade600, height: 1.5),
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context)
+                    .pushNamedAndRemoveUntil('/lecturer-login', (_) => false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kNavy,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Back to login',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildForm() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Hero ──────────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_kNavy, _kBlue],
+              ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text('Teach on EduBridge',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(height: 14),
+                const Text('Apply to teach',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  'Tell us about yourself and what you\'d teach. Every instructor '
+                  'is vetted — your account is created only once you\'re approved, '
+                  'then you log in with the password you set here.',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 13,
+                      height: 1.45),
+                ),
+              ],
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionLabel('YOUR ACCOUNT'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _field(firstNameController, 'First Name',
+                            hint: 'Ada',
+                            icon: Icons.person_outline,
+                            cap: TextCapitalization.words)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _field(lastNameController, 'Last Name',
+                            hint: 'Lovelace',
+                            icon: Icons.person_outline,
+                            cap: TextCapitalization.words)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _field(emailController, 'Email Address',
+                    hint: 'you@example.com',
+                    icon: Icons.email_outlined,
+                    keyboard: TextInputType.emailAddress),
+                const SizedBox(height: 16),
+                _passwordField(passwordController, 'Password',
+                    hint: 'Create a strong password',
+                    obscure: obscurePassword,
+                    onToggle: () =>
+                        setState(() => obscurePassword = !obscurePassword)),
+                const SizedBox(height: 12),
+                _passwordChecklist(),
+                const SizedBox(height: 16),
+                _passwordField(confirmPasswordController, 'Confirm Password',
+                    hint: 'Type it again',
+                    obscure: obscureConfirmPassword,
+                    onToggle: () => setState(() =>
+                        obscureConfirmPassword = !obscureConfirmPassword)),
+                if (confirmPasswordController.text.isNotEmpty && !_matches) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.error_outline,
+                          size: 15, color: Colors.red.shade400),
+                      const SizedBox(width: 6),
+                      Text("Passwords don't match yet",
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.red.shade400)),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 24),
+                _sectionLabel('ABOUT YOUR TEACHING'),
+                const SizedBox(height: 12),
+                _field(motivationController,
+                    'Why do you want to teach on EduBridge?',
+                    hint: 'Share your motivation…', maxLines: 4),
+                const SizedBox(height: 16),
+                _field(subjectsController,
+                    'Subjects you can teach (comma-separated)',
+                    hint: 'e.g. Web Development, Python, Design'),
+                const SizedBox(height: 16),
+                _field(experienceController,
+                    'Teaching / work experience (optional)',
+                    hint: 'Where have you worked or taught?', maxLines: 3),
+                const SizedBox(height: 16),
+                _field(sampleController,
+                    'Sample lesson / portfolio URL (optional)',
+                    hint: 'https://…'),
+                const SizedBox(height: 16),
+                _field(linkedinController, 'LinkedIn URL (optional)',
+                    hint: 'https://linkedin.com/in/…'),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: (_submitting || !_passwordOk || !_matches)
+                        ? null
+                        : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kNavy,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _kNavy.withValues(alpha: 0.4),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: _submitting
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Text('Submit application',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('Already have an account? ',
+                          style: TextStyle(
+                              color: Colors.blueGrey.shade600, fontSize: 14)),
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/lecturer-login'),
+                        child: const Text('Log in',
+                            style: TextStyle(
+                                color: _kNavy,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Text(text,
+      style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.1,
+          color: Colors.blueGrey.shade400));
 
   Widget _passwordChecklist() {
     final pw = passwordController.text;
@@ -365,13 +412,15 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
   Widget _field(TextEditingController ctrl, String label,
       {String? hint,
       IconData? icon,
+      int maxLines = 1,
       TextInputType keyboard = TextInputType.text,
       TextCapitalization cap = TextCapitalization.none}) {
     return TextField(
       controller: ctrl,
       keyboardType: keyboard,
       textCapitalization: cap,
-      decoration: _decoration(label, hint, icon),
+      maxLines: maxLines,
+      decoration: _decoration(label, hint, icon, maxLines > 1),
     );
   }
 
@@ -381,7 +430,8 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
       controller: ctrl,
       obscureText: obscure,
       onChanged: (_) => setState(() {}),
-      decoration: _decoration(label, hint, Icons.lock_outline).copyWith(
+      decoration:
+          _decoration(label, hint, Icons.lock_outline, false).copyWith(
         suffixIcon: IconButton(
           icon: Icon(obscure ? Icons.visibility_off : Icons.visibility,
               color: Colors.blueGrey.shade400),
@@ -391,10 +441,12 @@ class _LecturerRegisterScreenState extends State<LecturerRegisterScreen> {
     );
   }
 
-  InputDecoration _decoration(String label, String? hint, IconData? icon) {
+  InputDecoration _decoration(
+      String label, String? hint, IconData? icon, bool alignTop) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
+      alignLabelWithHint: alignTop,
       prefixIcon: icon == null ? null : Icon(icon, color: _kBlue),
       filled: true,
       fillColor: Colors.white,
