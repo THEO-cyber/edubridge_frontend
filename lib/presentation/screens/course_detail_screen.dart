@@ -489,15 +489,31 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
   String get _imageUrl =>
       (_detail['imageUrl'] ?? _detail['thumbnail'] ?? widget.imageUrl ?? '').toString();
 
-  String get _instructorName =>
-      (_detail['instructorName'] ??
-          (_detail['instructor'] as Map?)?['name'] ??
-          (_detail['instructor'] as Map?)?['firstName'] ??
-          'Instructor')
-          .toString();
+  String get _instructorName {
+    final direct = _detail['instructorName'];
+    if (direct != null && direct.toString().trim().isNotEmpty) {
+      return direct.toString();
+    }
+    final ins = _detail['instructor'];
+    if (ins is Map) {
+      final name = (ins['name'] ?? '').toString().trim();
+      if (name.isNotEmpty) return name;
+      final full = '${ins['firstName'] ?? ''} ${ins['lastName'] ?? ''}'.trim();
+      if (full.isNotEmpty) return full;
+    }
+    return 'Instructor';
+  }
 
-  String get _category =>
-      (_detail['category'] ?? 'General').toString();
+  // The API returns category as an object { id, name, slug }, so pull the name
+  // out rather than stringifying the whole map onto the screen.
+  String get _category {
+    final c = _detail['category'];
+    if (c is Map) {
+      return (c['name'] ?? c['title'] ?? c['slug'] ?? 'General').toString();
+    }
+    final s = (c ?? '').toString().trim();
+    return s.isEmpty ? 'General' : s;
+  }
 
   String get _level =>
       (_detail['level'] ?? 'Beginner').toString();
