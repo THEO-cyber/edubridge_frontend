@@ -2,7 +2,6 @@ import '../../core/http_utils.dart';
 import 'dart:convert';
 
 import 'package:edubridge/constants/api_constants.dart';
-import 'package:http/http.dart' as http;
 
 import '../../core/error_handling.dart';
 

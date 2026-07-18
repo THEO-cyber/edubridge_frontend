@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
 import '../../../constants/api_constants.dart';
+import '../../../core/http_utils.dart';
 import '../../../core/secure_storage.dart';
 import '../../blocs/auth_bloc.dart';
 import '../../widgets/google_sign_in_button.dart';
@@ -24,16 +25,13 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
   Future<void> _verifyAndNavigate(BuildContext context) async {
     try {
       final token = await SecureStorage.getToken();
-      print('---------- [LecturerLogin] Token read from SecureStorage: $token');
       if (token == null || token.isEmpty) {
-        print('---------- [LecturerLogin] ERROR: token null/empty after AuthSuccess');
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login succeeded but no token was saved. Please try again.')),
         );
         return;
       }
-      print('---------- [LecturerLogin] Calling /auth/me with token...');
 
       final response = await http.get(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.me}'),
@@ -42,8 +40,6 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
 
       if (!context.mounted) return;
 
-      print('---------- [LecturerLogin] /auth/me status: ${response.statusCode}');
-      print('---------- [LecturerLogin] /auth/me response: ${response.body}');
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         // Extract role from flat or nested response
@@ -58,7 +54,6 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
           }
         }
         final normalized = role.toLowerCase().trim();
-        print('---------- [LecturerLogin] Role extracted: "$normalized"');
         final isInstructor = normalized.contains('instruct') ||
             normalized.contains('lect') ||
             normalized.contains('teach') ||
@@ -73,20 +68,20 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
               context, '/lecturer-dashboard', (_) => false);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text(
-                normalized.isEmpty
-                    ? 'Access denied: role not found in profile. Response: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}'
-                    : 'Access denied: account role "$normalized" is not an instructor role.',
+                'This account isn\'t an instructor yet. If you applied to teach, '
+                'you can sign in once your application is approved.',
               ),
-              duration: const Duration(seconds: 6),
+              duration: Duration(seconds: 6),
             ),
           );
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not verify role (${response.statusCode}): ${response.body.length > 150 ? response.body.substring(0, 150) : response.body}'),
+            content: Text(apiErrorMessage(response.body, response.statusCode,
+                fallback: "We couldn't verify your account. Please try again.")),
             duration: const Duration(seconds: 6),
           ),
         );
@@ -94,7 +89,7 @@ class _LecturerLoginScreenState extends State<LecturerLoginScreen> {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error verifying role: $e')),
+        SnackBar(content: Text(networkErrorMessage(e))),
       );
     }
   }

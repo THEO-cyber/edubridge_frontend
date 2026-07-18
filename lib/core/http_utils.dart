@@ -154,12 +154,19 @@ Future<http.Response> apiDelete(Uri url, {Map<String, String>? headers}) =>
 
 String networkErrorMessage(Object e) {
   if (e is TimeoutException) {
-    return 'Connection timed out. Make sure your device is on the same network as the server.';
+    return 'Connection timed out. Please check your internet connection and try again.';
   }
   if (e is SocketException) {
-    return 'Cannot reach server. Check your network connection.';
+    return 'Cannot reach EduBridge. Please check your internet connection and try again.';
   }
-  return e.toString().replaceFirst('Exception: ', '');
+  // A deliberately-thrown Exception('friendly text') — surface just its text.
+  final s = e.toString();
+  if (e is Exception && s.startsWith('Exception: ')) {
+    return s.replaceFirst('Exception: ', '');
+  }
+  // Unknown transport/parse error — stay generic so we never leak internals
+  // (hosts, URLs, stack details) into the UI.
+  return 'Something went wrong. Please try again.';
 }
 
 /// Turns an API error body into something worth showing a person.

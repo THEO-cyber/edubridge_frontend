@@ -93,15 +93,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     try {
       final url = ApiConstants.baseUrl + ApiConstants.forgotPassword;
       final body = jsonEncode({'email': email});
-      print('-------- [ForgotPassword] URL: $url');
-      print('-------- [ForgotPassword] Body: $body');
       final res = await http.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
-      print('-------- [ForgotPassword] Status: ${res.statusCode}');
-      print('-------- [ForgotPassword] Response: ${res.body}');
       if (res.statusCode == 200 || res.statusCode == 201) {
         _animateTo(_Step.otp);
       } else {
@@ -120,7 +116,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         setState(() => _error = msg);
       }
     } catch (e) {
-      print('-------- [ForgotPassword] Exception: $e');
       setState(() => _error = 'Network error. Check your connection.');
     } finally {
       if (mounted) setState(() => _loading = false);

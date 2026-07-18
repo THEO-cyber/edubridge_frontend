@@ -1,8 +1,6 @@
 import '../../core/http_utils.dart';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:edubridge/constants/api_constants.dart';
-import 'package:http/http.dart' as http;
 import '../../core/error_handling.dart';
 
 class LessonRemoteDataSource {
@@ -57,13 +55,11 @@ class LessonRemoteDataSource {
       'title': sectionData['title'],
       'sortOrder': sectionData['order'] ?? 1,
     };
-    debugPrint('-- addSection POST $url body=${jsonEncode(body)}');
     final response = await apiPost(
       Uri.parse(url),
       headers: _auth(token),
       body: jsonEncode(body),
     );
-    debugPrint('-- addSection STATUS ${response.statusCode} ${response.body}');
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -79,13 +75,11 @@ class LessonRemoteDataSource {
   ) async {
     // PATCH /lessons/sections/:sectionId
     final url = '${ApiConstants.baseUrl}${ApiConstants.lessons}/sections/$sectionId';
-    debugPrint('-- updateSection PATCH $url body=${jsonEncode(sectionData)}');
     final response = await apiPatch(
       Uri.parse(url),
       headers: _auth(token),
       body: jsonEncode(sectionData),
     );
-    debugPrint('-- updateSection STATUS ${response.statusCode} ${response.body}');
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -100,9 +94,7 @@ class LessonRemoteDataSource {
   ) async {
     // DELETE /lessons/sections/:sectionId
     final url = '${ApiConstants.baseUrl}${ApiConstants.lessons}/sections/$sectionId';
-    debugPrint('-- deleteSection DELETE $url');
     final response = await apiDelete(Uri.parse(url), headers: _auth(token));
-    debugPrint('-- deleteSection STATUS ${response.statusCode} ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw ApiException(
           _err(response.body, 'Failed to delete section'), response.statusCode);
@@ -122,13 +114,11 @@ class LessonRemoteDataSource {
       if (lessonData['sortOrder'] != null) 'sortOrder': lessonData['sortOrder'],
       if (lessonData['content'] != null) 'content': lessonData['content'],
     };
-    debugPrint('-- addLesson POST $url body=${jsonEncode(body)}');
     final response = await apiPost(
       Uri.parse(url),
       headers: _auth(token),
       body: jsonEncode(body),
     );
-    debugPrint('-- addLesson STATUS ${response.statusCode} ${response.body}');
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }

@@ -119,7 +119,6 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
   }
 
   Future<void> _fetchCourseDetail(String? token) async {
-    debugPrint('🔍 [CourseDetail] fetching courseId=${widget.courseId} hasToken=${token != null}');
     try {
       final res = await http.get(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.courseDetails(widget.courseId)}'),
@@ -128,17 +127,13 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
           if (token != null) 'Authorization': 'Bearer $token',
         },
       ).timeout(const Duration(seconds: 12));
-      debugPrint('🔍 [CourseDetail] status=${res.statusCode} body=${res.body.length > 500 ? res.body.substring(0, 500) : res.body}');
       if (!mounted) return;
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final enrolled = data['isEnrolled'] == true;
         final eid = _extractEnrollmentId(data);
-        debugPrint('✅ [CourseDetail] isEnrolled=$enrolled enrollmentId=$eid');
-        debugPrint('✅ [CourseDetail] keys=${data.keys.toList()}');
         // Parse sections list
         final rawSections = data['sections'];
-        debugPrint('🔍 [CourseDetail] sections type=${rawSections.runtimeType}');
         final List<Map<String, dynamic>> sections = [];
         if (rawSections is List) {
           for (final s in rawSections) {
@@ -149,14 +144,9 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
             }
           }
         }
-        debugPrint('🔍 [CourseDetail] parsed ${sections.length} sections');
 
         // Extract lessons that are already nested inside sections
         final lessons = _extractLessonsFromSections(data);
-        debugPrint('✅ [CourseDetail] ${sections.length} sections, ${lessons.length} inline lessons');
-        for (final l in lessons) {
-          debugPrint('   lesson id=${l['id']} title=${l['title']} videoId=${l['videoId']} videoStatus=${l['videoStatus']}');
-        }
 
         setState(() {
           _detail = data;
@@ -170,7 +160,6 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
         if (enrolled && token != null) {
           _fetchProgress(token);
           if (eid == null) {
-            debugPrint('⚠️ [CourseDetail] enrollmentId not in course response — fetching from enroll list');
             _fetchEnrollmentIdFromList(token);
           }
         }
@@ -179,11 +168,9 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
         // The endpoint works with or without auth (non-enrolled users see free-preview lessons).
         _fetchSectionLessons(token, sections);
       } else {
-        debugPrint('❌ [CourseDetail] non-200: ${res.statusCode} ${res.body}');
         if (mounted) setState(() => _detailLoading = false);
       }
-    } catch (e, st) {
-      debugPrint('❌ [CourseDetail] exception: $e\n$st');
+    } catch (e) {
       if (mounted) setState(() => _detailLoading = false);
     }
   }
@@ -195,7 +182,6 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
     if (b != null && b.isNotEmpty) return b;
     final c = (d['enrollmentData'] as Map?)?['id']?.toString();
     if (c != null && c.isNotEmpty) return c;
-    debugPrint('⚠️ [CourseDetail] enrollmentId not found in keys: ${d.keys.toList()}');
     return null;
   }
 
@@ -264,7 +250,6 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
       String? token, List<Map<String, dynamic>> ignored) async {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.lessonSections(widget.courseId)}';
-    debugPrint('🔍 [SectionLessons] GET $url');
     final headers = <String, String>{};
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
@@ -273,8 +258,6 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
       final res = await http
           .get(Uri.parse(url), headers: headers)
           .timeout(const Duration(seconds: 12));
-      debugPrint(
-          '🔍 [SectionLessons] status=${res.statusCode} body=${res.body.length > 500 ? res.body.substring(0, 500) : res.body}');
       if (res.statusCode == 200 && mounted) {
         final body = jsonDecode(res.body);
         final rawSections = body is List
@@ -300,22 +283,15 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
             }
           }
         }
-        debugPrint('✅ [SectionLessons] ${allLessons.length} lessons');
-        for (final l in allLessons) {
-          debugPrint(
-              '   "${l["_sectionTitle"]}" › ${l["title"]}  videoId=${l["videoId"]} status=${l["videoStatus"]}');
-        }
         setState(() {
           _lessons = allLessons;
           _lessonsLoading = false;
         });
         _autoExpandFirstSection(allLessons);
       } else {
-        debugPrint('❌ [SectionLessons] failed ${res.statusCode}');
         if (mounted) setState(() => _lessonsLoading = false);
       }
     } catch (e) {
-      debugPrint('❌ [SectionLessons] exception: $e');
       if (mounted) setState(() => _lessonsLoading = false);
     }
   }
@@ -331,34 +307,28 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
 
   Future<void> _fetchEnrollmentIdFromList(String token) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.enroll}';
-    debugPrint('🔍 [EnrollList] GET $url');
     try {
       final res = await http.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
       ).timeout(const Duration(seconds: 12));
-      debugPrint('🔍 [EnrollList] status=${res.statusCode} body=${res.body.length > 400 ? res.body.substring(0, 400) : res.body}');
       if (res.statusCode == 200 && mounted) {
         final data = jsonDecode(res.body);
         final list = data is List ? data : (data['enrollments'] ?? data['data'] ?? []);
-        debugPrint('🔍 [EnrollList] ${(list as List).length} enrollments, looking for courseId=${widget.courseId}');
         for (final e in list) {
           if (e is! Map) continue;
           final cid = (e['courseId'] ?? (e['course'] as Map?)?['id'])?.toString();
-          debugPrint('   enrollment id=${e['id']} courseId=$cid');
           if (cid == widget.courseId) {
             final eid = e['id']?.toString();
-            debugPrint('✅ [EnrollList] found enrollmentId=$eid');
             if (eid != null && eid.isNotEmpty && mounted) {
               setState(() => _enrollmentId = eid);
               return;
             }
           }
         }
-        debugPrint('❌ [EnrollList] no enrollment found for courseId=${widget.courseId}');
       }
-    } catch (e) {
-      debugPrint('❌ [EnrollList] exception: $e');
+    } catch (_) {
+      // Best-effort — ignore failures.
     }
   }
 
@@ -367,13 +337,11 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
 
   Future<void> _fetchProgress(String token) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.enrollmentProgress(widget.courseId)}';
-    debugPrint('🔍 [Progress] GET $url');
     try {
       final res = await http.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
       ).timeout(const Duration(seconds: 12));
-      debugPrint('🔍 [Progress] status=${res.statusCode} body=${res.body}');
       if (res.statusCode == 200 && mounted) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         // Backend wraps result inside "enrollment" key
@@ -396,17 +364,14 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
           }
         }
         final eid = data['id']?.toString() ?? body['enrollmentId']?.toString();
-        debugPrint('✅ [Progress] pct=$pct completedLessons=${done.length} enrollmentId=$eid');
         setState(() {
           _progressPct = pct;
           _completedLessonIds = done;
           if (eid != null && eid.isNotEmpty && _enrollmentId == null) _enrollmentId = eid;
         });
-      } else {
-        debugPrint('❌ [Progress] non-200: ${res.statusCode} ${res.body}');
       }
-    } catch (e) {
-      debugPrint('❌ [Progress] exception: $e');
+    } catch (_) {
+      // Best-effort enrolment lookup — ignore failures.
     }
   }
 

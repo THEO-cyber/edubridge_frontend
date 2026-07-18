@@ -1759,7 +1759,6 @@ class _CourseContentScreenState extends State<CourseContentScreen> {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ${widget.token}',
       }).timeout(const Duration(seconds: 12));
-      debugPrint('-- loadSections → ${r.statusCode} ${r.body.substring(0, r.body.length.clamp(0, 200))}');
 
       if (r.statusCode == 200) {
         final decoded = jsonDecode(r.body);
@@ -1777,8 +1776,6 @@ class _CourseContentScreenState extends State<CourseContentScreen> {
               ((a['sortOrder'] ?? a['order'] ?? 0) as num)
                   .compareTo(((b['sortOrder'] ?? b['order'] ?? 0) as num)));
         if (sections.isNotEmpty) {
-          debugPrint('-- section[0] lessons sample: '
-              '${(sections[0]['lessons'] as List?)?.take(1).toList()}');
         }
         if (!mounted) return;
         setState(() { _sections = sections; _isLoading = false; });
@@ -1786,7 +1783,6 @@ class _CourseContentScreenState extends State<CourseContentScreen> {
       }
       // non-200: fall through to lessons fallback
     } catch (e) {
-      debugPrint('-- loadSections error: $e');
       // network error on sections endpoint — try lessons fallback
     }
 
@@ -1800,7 +1796,6 @@ class _CourseContentScreenState extends State<CourseContentScreen> {
           'Authorization': 'Bearer ${widget.token}',
         },
       ).timeout(const Duration(seconds: 12));
-      debugPrint('-- loadLessons → ${r.statusCode}');
 
       if (!mounted) return;
 

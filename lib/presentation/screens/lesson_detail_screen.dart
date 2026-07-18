@@ -78,7 +78,6 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
   /// Resolves the stream endpoint's 302 redirect to get the actual presigned URL.
   /// MinIO presigned URLs have auth embedded — no extra header needed.
   Future<String> _resolveStreamUrl(String streamUrl) async {
-    debugPrint('▶️ [Player] resolving redirect for: $streamUrl');
     try {
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 10);
@@ -91,7 +90,6 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
       if (resp.statusCode == 302 || resp.statusCode == 301) {
         final location = resp.headers.value('location');
         if (location != null && location.isNotEmpty) {
-          debugPrint('✅ [Player] presigned URL resolved');
           return location;
         }
       }
@@ -104,10 +102,8 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
           if (url != null) return url.toString();
         } catch (_) {}
       }
-      debugPrint('⚠️ [Player] no redirect — using original URL');
       return streamUrl;
     } catch (e) {
-      debugPrint('❌ [Player] redirect resolve failed: $e — using original URL');
       return streamUrl;
     }
   }
@@ -115,9 +111,6 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
   // ── Player lifecycle ──────────────────────────────────────────────────────
 
   Future<void> _initPlayer({String? quality}) async {
-    debugPrint('▶️ [Player] init lessonId=${widget.lessonId}');
-    debugPrint('   videoId=${widget.videoId} videoStatus=${widget.videoStatus}');
-    debugPrint('   videoUrl=${widget.videoUrl}  enrollmentId=${widget.enrollmentId}');
     _progressTimer?.cancel();
     _disposePlayer();
     setState(() {
@@ -139,28 +132,22 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         url = resolved;
         // Presigned URL embeds auth — no Authorization header needed
         headers = {};
-        debugPrint('▶️ [Player] using presigned URL (resolved)');
       } else if (!_hasProcessedVideo && widget.videoUrl.trim().isNotEmpty) {
         url = widget.videoUrl.trim();
         headers = {
           'Authorization': 'Bearer ${widget.token}',
           'Range': 'bytes=0-',
         };
-        debugPrint('▶️ [Player] using legacy videoUrl: $url');
       } else {
-        debugPrint(
-            '❌ [Player] no playable video — hasProcessed=$_hasProcessedVideo status=$_effectiveStatus url=${widget.videoUrl}');
         setState(() => _initializing = false);
         return;
       }
 
-      debugPrint('▶️ [Player] initializing VideoPlayerController...');
       _vpc = VideoPlayerController.networkUrl(
         Uri.parse(url),
         httpHeaders: headers,
       );
       await _vpc!.initialize();
-      debugPrint('✅ [Player] initialized — duration=${_vpc!.value.duration}');
 
       _chewie = ChewieController(
         videoPlayerController: _vpc!,
@@ -194,8 +181,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
       });
 
       if (mounted) setState(() => _initializing = false);
-    } catch (e, st) {
-      debugPrint('❌ [Player] error: $e\n$st');
+    } catch (e) {
       if (mounted) {
         setState(() {
           _initializing = false;

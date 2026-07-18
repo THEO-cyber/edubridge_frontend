@@ -29,15 +29,11 @@ Future<void> showTwoFAVerificationDialog({
 
             try {
               final requestBody = jsonEncode({'tempToken': tempToken, 'totpCode': code});
-              print('---------- [2FA Dialog] URL: ${ApiConstants.baseUrl}${ApiConstants.twoFaVerify}');
-              print('---------- [2FA Dialog] Request body: $requestBody');
               final res = await http.post(
                 Uri.parse(ApiConstants.baseUrl + ApiConstants.twoFaVerify),
                 headers: {'Content-Type': 'application/json'},
                 body: requestBody,
               );
-              print('---------- [2FA Dialog] Status: ${res.statusCode}');
-              print('---------- [2FA Dialog] Response: ${res.body}');
 
               if (res.statusCode == 200 || res.statusCode == 201) {
                 final body = jsonDecode(res.body);
@@ -51,11 +47,9 @@ Future<void> showTwoFAVerificationDialog({
                           body['data']['token'])
                       ?.toString();
                 }
-                print('---------- [2FA Dialog] Extracted accessToken: $accessToken');
 
                 if (accessToken != null && accessToken.isNotEmpty) {
                   await SecureStorage.saveToken(accessToken);
-                  print('---------- [2FA Dialog] Token saved');
                   if (dialogCtx.mounted) Navigator.of(dialogCtx).pop(true);
                   if (context.mounted) await onVerified(context);
                 } else {
@@ -79,7 +73,6 @@ Future<void> showTwoFAVerificationDialog({
                     }
                   }
                 } catch (_) {}
-                print('---------- [2FA Dialog] Error message shown: $msg');
                 if (dialogCtx.mounted) {
                   ScaffoldMessenger.of(dialogCtx).showSnackBar(
                     SnackBar(
@@ -96,7 +89,6 @@ Future<void> showTwoFAVerificationDialog({
                 });
               }
             } catch (e) {
-              print('---------- [2FA Dialog] Exception: $e');
               if (dialogCtx.mounted) {
                 ScaffoldMessenger.of(dialogCtx).showSnackBar(
                   const SnackBar(

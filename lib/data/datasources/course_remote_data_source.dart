@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import '../../constants/api_constants.dart';
 import '../../core/error_handling.dart';
 import '../../core/http_utils.dart';
@@ -150,9 +149,6 @@ class CourseRemoteDataSource {
   ) async {
     final url = ApiConstants.baseUrl + ApiConstants.courses;
     final requestBody = jsonEncode(courseData);
-    debugPrint('------------ CREATE COURSE REQUEST ------------');
-    debugPrint('------------ URL: $url');
-    debugPrint('------------ BODY: $requestBody');
 
     try {
       final response = await apiPost(
@@ -163,8 +159,6 @@ class CourseRemoteDataSource {
         },
         body: requestBody,
       );
-      debugPrint('------------ STATUS: ${response.statusCode}');
-      debugPrint('------------ RESPONSE: ${response.body}');
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }

@@ -11,6 +11,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import '../../constants/api_constants.dart';
+import '../../core/http_utils.dart';
 import '../../core/secure_storage.dart';
 import '../../domain/entities/certificate_entity.dart';
 import '../blocs/certificate_bloc.dart';
@@ -494,7 +495,7 @@ class _CertificateCardState extends State<_CertificateCard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download failed: ${e.toString()}'),
+          content: Text(networkErrorMessage(e)),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5),
@@ -520,7 +521,7 @@ class _CertificateCardState extends State<_CertificateCard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Share failed: ${e.toString()}'),
+          content: Text(networkErrorMessage(e)),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ));
@@ -1018,7 +1019,7 @@ class _CertificatePreviewScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download failed: ${e.toString()}'),
+          content: Text(networkErrorMessage(e)),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 6),
@@ -1044,7 +1045,7 @@ class _CertificatePreviewScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Share failed: ${e.toString()}'),
+          content: Text(networkErrorMessage(e)),
           backgroundColor: Colors.redAccent,
         ));
       }

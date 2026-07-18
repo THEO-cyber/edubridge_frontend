@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:edubridge/constants/api_constants.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -29,11 +28,6 @@ class VideoProcessingRemoteDataSource {
     String token,
   ) async {
     final url = ApiConstants.baseUrl + ApiConstants.uploadVideoForLesson(lessonId);
-    debugPrint('-- uploadVideo POST $url  file=$filePath');
-
-    final file = File(filePath);
-    final fileSize = await file.length();
-    debugPrint('-- uploadVideo fileSize=${(fileSize / 1024 / 1024).toStringAsFixed(1)} MB');
 
     final request = http.MultipartRequest('POST', Uri.parse(url))
       ..headers['Authorization'] = 'Bearer $token'
@@ -47,8 +41,6 @@ class VideoProcessingRemoteDataSource {
     final streamed = await request.send().timeout(const Duration(minutes: 10));
     final response = await http.Response.fromStream(streamed);
 
-    debugPrint('-- uploadVideo STATUS ${response.statusCode}');
-    debugPrint('-- uploadVideo RESPONSE ${response.body}');
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -110,7 +102,6 @@ class VideoProcessingRemoteDataSource {
     final filename = p.basename(filePath);
     final mimeType = _mediaType(filePath).toString();
     final fileSize = await File(filePath).length();
-    debugPrint('-- initiateUpload POST $url  file=$filename  size=$fileSize');
     final res = await http.post(
       Uri.parse(url),
       headers: {
@@ -123,7 +114,6 @@ class VideoProcessingRemoteDataSource {
         'fileSize': fileSize,
       }),
     ).timeout(const Duration(seconds: 30));
-    debugPrint('-- initiateUpload STATUS ${res.statusCode} BODY ${res.body}');
     if (res.statusCode == 200 || res.statusCode == 201) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
@@ -139,8 +129,6 @@ class VideoProcessingRemoteDataSource {
     final file = File(filePath);
     final bytes = await file.readAsBytes();
     final contentType = _mediaType(filePath).toString();
-    debugPrint(
-        '-- uploadToStorage PUT $uploadUrl  size=${(bytes.length / 1024 / 1024).toStringAsFixed(1)} MB  type=$contentType');
     final res = await http
         .put(
           Uri.parse(uploadUrl),
@@ -148,7 +136,6 @@ class VideoProcessingRemoteDataSource {
           body: bytes,
         )
         .timeout(const Duration(minutes: 15));
-    debugPrint('-- uploadToStorage STATUS ${res.statusCode}');
     if (res.statusCode != 200 &&
         res.statusCode != 201 &&
         res.statusCode != 204) {
@@ -161,7 +148,6 @@ class VideoProcessingRemoteDataSource {
   Future<void> completeUpload(String videoId, String token) async {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.completeUpload(videoId)}';
-    debugPrint('-- completeUpload POST $url');
     final res = await http.post(
       Uri.parse(url),
       headers: {
@@ -169,7 +155,6 @@ class VideoProcessingRemoteDataSource {
         'Content-Type': 'application/json',
       },
     ).timeout(const Duration(seconds: 30));
-    debugPrint('-- completeUpload STATUS ${res.statusCode}');
     if (res.statusCode != 200 && res.statusCode != 201) {
       String msg = 'Failed to complete upload (${res.statusCode})';
       try {
@@ -185,12 +170,10 @@ class VideoProcessingRemoteDataSource {
       {String quality = '720p'}) async {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.streamUrlForVideo(videoId)}?quality=$quality';
-    debugPrint('-- getStreamUrlCdn GET $url');
     final res = await http.get(
       Uri.parse(url),
       headers: {'Authorization': 'Bearer $token'},
     ).timeout(const Duration(seconds: 15));
-    debugPrint('-- getStreamUrlCdn STATUS ${res.statusCode}');
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final cdnUrl = (data['streamUrl'] ?? data['url'] ?? '').toString();

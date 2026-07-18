@@ -47,14 +47,12 @@ class _LiveSessionsScheduleScreenState
         return List<Map<String, dynamic>>.from(sessions);
       }
       if (response.statusCode == 404) {
-        debugPrint('Live sessions endpoint not available: ${response.body}');
         return [];
       }
       throw Exception(
         'Failed to load live sessions: ${response.statusCode} ${response.body}',
       );
     } catch (e) {
-      debugPrint('Live sessions fetch error: $e');
       rethrow;
     }
   }

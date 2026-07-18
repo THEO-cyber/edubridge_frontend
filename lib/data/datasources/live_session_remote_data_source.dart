@@ -9,7 +9,6 @@ class LiveSessionRemoteDataSource {
   Future<List<Map<String, dynamic>>> fetchLiveSessions(String token) async {
     // Backend has no bare GET /live-sessions — use /upcoming instead
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessionUpcoming}';
-    print('---------- [LiveSessions] GET $url');
     final response = await apiGet(
       Uri.parse(url),
       headers: {
@@ -17,7 +16,6 @@ class LiveSessionRemoteDataSource {
         'Authorization': 'Bearer $token',
       },
     );
-    print('---------- [LiveSessions] Status: ${response.statusCode}');
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return List<Map<String, dynamic>>.from(
@@ -59,7 +57,6 @@ class LiveSessionRemoteDataSource {
 
   Future<Map<String, dynamic>> joinLiveSession(String sessionId, String token) async {
     final url = '${ApiConstants.baseUrl}/live-sessions/$sessionId/join';
-    print('---------- [JoinSession] POST $url');
     final response = await apiPost(
       Uri.parse(url),
       headers: {
@@ -67,8 +64,6 @@ class LiveSessionRemoteDataSource {
         'Authorization': 'Bearer $token',
       },
     );
-    print('---------- [JoinSession] Status: ${response.statusCode}');
-    print('---------- [JoinSession] Response: ${response.body}');
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -161,8 +156,6 @@ class LiveSessionRemoteDataSource {
 
   Future<void> createLiveSession(String token, Map<String, dynamic> body) async {
     final url = ApiConstants.baseUrl + ApiConstants.liveSessions;
-    print('---------- [LiveSession] POST $url');
-    print('---------- [LiveSession] Body: ${jsonEncode(body)}');
     final response = await apiPost(
       Uri.parse(url),
       headers: {
@@ -171,8 +164,6 @@ class LiveSessionRemoteDataSource {
       },
       body: jsonEncode(body),
     );
-    print('---------- [LiveSession] Status: ${response.statusCode}');
-    print('---------- [LiveSession] Response: ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw ApiException('Failed to create live session: ${response.body}', response.statusCode);
     }
@@ -254,7 +245,6 @@ class LiveSessionRemoteDataSource {
 
   Future<List<Map<String, dynamic>>> fetchAllInstructorRequests(String token) async {
     final url = ApiConstants.baseUrl + ApiConstants.liveSessionRequests;
-    print('---------- [InstructorRequests] GET $url');
     final response = await apiGet(
       Uri.parse(url),
       headers: {
@@ -262,14 +252,11 @@ class LiveSessionRemoteDataSource {
         'Authorization': 'Bearer $token',
       },
     );
-    print('---------- [InstructorRequests] Status: ${response.statusCode}');
-    print('---------- [InstructorRequests] Response: ${response.body}');
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final list = data is List
           ? List<Map<String, dynamic>>.from(data)
           : List<Map<String, dynamic>>.from(data['requests'] ?? data['data'] ?? []);
-      print('---------- [InstructorRequests] Total count: ${list.length}');
       return list;
     }
     throw ApiException('Failed to fetch requests', response.statusCode);
@@ -290,8 +277,6 @@ class LiveSessionRemoteDataSource {
 
   Future<void> setAvailability(String token, Map<String, dynamic> body) async {
     final url = '${ApiConstants.baseUrl}/live-sessions/availability';
-    print('---------- [Availability] POST $url');
-    print('---------- [Availability] Body: ${jsonEncode(body)}');
     final response = await apiPost(
       Uri.parse(url),
       headers: {
@@ -300,8 +285,6 @@ class LiveSessionRemoteDataSource {
       },
       body: jsonEncode(body),
     );
-    print('---------- [Availability] Status: ${response.statusCode}');
-    print('---------- [Availability] Response: ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw ApiException('Failed to set availability: ${response.body}', response.statusCode);
     }
@@ -309,7 +292,6 @@ class LiveSessionRemoteDataSource {
 
   Future<List<Map<String, dynamic>>> fetchMyAvailabilitySlots(String token) async {
     final url = ApiConstants.baseUrl + ApiConstants.liveSessionMyAvailability;
-    print('---------- [MySlots] GET $url');
     final response = await apiGet(
       Uri.parse(url),
       headers: {
@@ -317,15 +299,12 @@ class LiveSessionRemoteDataSource {
         'Authorization': 'Bearer $token',
       },
     );
-    print('---------- [MySlots] Status: ${response.statusCode}');
-    print('---------- [MySlots] Response: ${response.body}');
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final list = data is List
           ? List<Map<String, dynamic>>.from(data)
           : List<Map<String, dynamic>>.from(
               data['slots'] ?? data['availability'] ?? data['data'] ?? []);
-      print('---------- [MySlots] Parsed count: ${list.length}');
       return list;
     }
     throw ApiException('Failed to fetch availability slots', response.statusCode);
@@ -333,7 +312,6 @@ class LiveSessionRemoteDataSource {
 
   Future<void> deleteAvailabilitySlot(String slotId, String token) async {
     final url = '${ApiConstants.baseUrl}/live-sessions/availability/$slotId';
-    print('---------- [DeleteSlot] DELETE $url');
     final response = await apiDelete(
       Uri.parse(url),
       headers: {
@@ -341,7 +319,6 @@ class LiveSessionRemoteDataSource {
         'Authorization': 'Bearer $token',
       },
     );
-    print('---------- [DeleteSlot] Status: ${response.statusCode}');
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw ApiException('Failed to delete slot', response.statusCode);
     }
@@ -503,15 +480,11 @@ class LiveSessionRemoteDataSource {
 
   Future<void> createGroupLiveSession(String token, Map<String, dynamic> body) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessions}';
-    print('---------- [CreateSession] POST $url');
-    print('---------- [CreateSession] Body: ${jsonEncode(body)}');
     final response = await apiPost(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       body: jsonEncode(body),
     );
-    print('---------- [CreateSession] Status: ${response.statusCode}');
-    print('---------- [CreateSession] Response: ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 201) {
       String msg = 'Failed to create session';
       try {
@@ -523,27 +496,15 @@ class LiveSessionRemoteDataSource {
       } catch (_) {}
       throw ApiException(msg, response.statusCode);
     }
-    // Print created session id + status for debugging
-    try {
-      final created = jsonDecode(response.body);
-      final s = created is Map
-          ? (created['session'] ?? created['data'] ?? created)
-          : created;
-      print(
-          '---------- [CreateSession] Created id=${s['id']} status=${s['status']}');
-    } catch (_) {}
   }
 
   Future<List<Map<String, dynamic>>> fetchUpcomingSessions(String token) async {
     // Try /live-sessions/upcoming first; if it returns 0, try /live-sessions?type=group
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessionUpcoming}';
-    print('---------- [Upcoming] GET $url');
     final response = await apiGet(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
-    print('---------- [Upcoming] Status: ${response.statusCode}');
-    print('---------- [Upcoming] Response: ${response.body}');
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final list = List<Map<String, dynamic>>.from(
@@ -553,7 +514,6 @@ class LiveSessionRemoteDataSource {
       // Fallback: try bare /live-sessions?type=group&status=scheduled
       final fallbackUrl =
           '${ApiConstants.baseUrl}${ApiConstants.liveSessions}?type=group&status=scheduled';
-      print('---------- [Upcoming] Fallback GET $fallbackUrl');
       final fb = await apiGet(
         Uri.parse(fallbackUrl),
         headers: {
@@ -561,8 +521,6 @@ class LiveSessionRemoteDataSource {
           'Authorization': 'Bearer $token'
         },
       );
-      print('---------- [Upcoming] Fallback Status: ${fb.statusCode}');
-      print('---------- [Upcoming] Fallback Response: ${fb.body}');
       if (fb.statusCode == 200) {
         final fd = jsonDecode(fb.body);
         return List<Map<String, dynamic>>.from(
@@ -576,9 +534,7 @@ class LiveSessionRemoteDataSource {
   Future<void> applyToSession(String sessionId, String token,
       {String? message}) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessionApply(sessionId)}';
-    print('---------- [Apply] POST $url');
     final hasBody = message != null && message.isNotEmpty;
-    print('---------- [Apply] Body: ${hasBody ? jsonEncode({'message': message}) : '(none)'}');
     final response = await apiPost(
       Uri.parse(url),
       headers: {
@@ -587,8 +543,6 @@ class LiveSessionRemoteDataSource {
       },
       body: hasBody ? jsonEncode({'message': message}) : null,
     );
-    print('---------- [Apply] Status: ${response.statusCode}');
-    print('---------- [Apply] Response: ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 201) {
       String msg = 'Failed to apply';
       try {
@@ -606,20 +560,14 @@ class LiveSessionRemoteDataSource {
       String sessionId, String token) async {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.liveSessionApplications(sessionId)}';
-    print('---------- [Applications] GET $url');
     final response = await apiGet(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
-    print('---------- [Applications] Status: ${response.statusCode}');
-    print('---------- [Applications] Response: ${response.body}');
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final list = List<Map<String, dynamic>>.from(
           data is List ? data : (data['applications'] ?? data['data'] ?? []));
-      for (final a in list) {
-        print('---------- [Applications] app id=${a['id']} status=${a['status']} student=${a['student'] ?? a['studentId']}');
-      }
       return list;
     }
     throw ApiException('Failed to fetch applications', response.statusCode);
@@ -628,13 +576,10 @@ class LiveSessionRemoteDataSource {
   Future<void> acceptApplication(String applicationId, String token) async {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.liveSessionApplicationAccept(applicationId)}';
-    print('---------- [AcceptApp] PATCH $url');
     final response = await apiPatch(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
-    print('---------- [AcceptApp] Status: ${response.statusCode}');
-    print('---------- [AcceptApp] Response: ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 201) {
       String msg = 'Failed to accept application';
       try {
@@ -648,13 +593,10 @@ class LiveSessionRemoteDataSource {
   Future<void> rejectApplication(String applicationId, String token) async {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.liveSessionApplicationReject(applicationId)}';
-    print('---------- [RejectApp] PATCH $url');
     final response = await apiPatch(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
-    print('---------- [RejectApp] Status: ${response.statusCode}');
-    print('---------- [RejectApp] Response: ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 201) {
       String msg = 'Failed to reject application';
       try {
@@ -669,14 +611,12 @@ class LiveSessionRemoteDataSource {
       {String? message}) async {
     final url =
         '${ApiConstants.baseUrl}${ApiConstants.liveSessionNotifyAccepted(sessionId)}';
-    print('---------- [Notify] POST $url');
     final response = await apiPost(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       body: jsonEncode(
           {'message': message ?? 'Your live session is about to start!'}),
     );
-    print('---------- [Notify] Status: ${response.statusCode}');
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw ApiException('Failed to send notifications', response.statusCode);
     }
@@ -684,13 +624,10 @@ class LiveSessionRemoteDataSource {
 
   Future<void> deleteSession(String sessionId, String token) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId';
-    print('---------- [DeleteSession] DELETE $url');
     final response = await apiDelete(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
     );
-    print('---------- [DeleteSession] Status: ${response.statusCode}');
-    print('---------- [DeleteSession] Response: ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 204) {
       String msg = 'Failed to delete session';
       try {
@@ -704,16 +641,12 @@ class LiveSessionRemoteDataSource {
   Future<void> rescheduleSession(
       String sessionId, String token, DateTime scheduledAt) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.liveSessions}/$sessionId';
-    print('---------- [Reschedule] PATCH $url');
     final body = {'scheduledAt': scheduledAt.toUtc().toIso8601String()};
-    print('---------- [Reschedule] Body: ${jsonEncode(body)}');
     final response = await apiPatch(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       body: jsonEncode(body),
     );
-    print('---------- [Reschedule] Status: ${response.statusCode}');
-    print('---------- [Reschedule] Response: ${response.body}');
     if (response.statusCode != 200 && response.statusCode != 201) {
       String msg = 'Failed to reschedule session';
       try {
@@ -729,8 +662,6 @@ class LiveSessionRemoteDataSource {
     String token,
   ) async {
     final url = ApiConstants.baseUrl + ApiConstants.liveSessionConfirm(requestId);
-    print('---------- [ConfirmSession] POST $url');
-    print('---------- [ConfirmSession] requestId: $requestId');
     final response = await apiPost(
       Uri.parse(url),
       headers: {
@@ -738,8 +669,6 @@ class LiveSessionRemoteDataSource {
         'Authorization': 'Bearer $token',
       },
     );
-    print('---------- [ConfirmSession] Status: ${response.statusCode}');
-    print('---------- [ConfirmSession] Response: ${response.body}');
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
