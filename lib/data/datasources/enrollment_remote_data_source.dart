@@ -15,7 +15,11 @@ class EnrollmentRemoteDataSource {
         body: jsonEncode({'courseId': courseId}),
       );
       if (response.statusCode != 200 && response.statusCode != 201) {
-        throw ApiException('Failed to enroll in course', response.statusCode);
+        throw ApiException(
+          apiErrorMessage(response.body, response.statusCode,
+              fallback: 'Failed to enroll in course'),
+          response.statusCode,
+        );
       }
     } catch (e) {
       if (e is ApiException) rethrow;

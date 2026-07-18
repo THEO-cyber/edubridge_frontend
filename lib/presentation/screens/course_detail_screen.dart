@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:edubridge/presentation/screens/auth_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:http/http.dart' as http;
 import '../../constants/api_constants.dart';
 import '../../core/error_handling.dart';
+import '../../core/http_utils.dart';
 import '../../core/secure_storage.dart';
 import '../../data/datasources/wishlist_remote_data_source.dart';
 import '../../data/datasources/review_remote_data_source.dart';
@@ -120,13 +120,13 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
 
   Future<void> _fetchCourseDetail(String? token) async {
     try {
-      final res = await http.get(
+      final res = await apiGet(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.courseDetails(widget.courseId)}'),
         headers: {
           'Content-Type': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
         },
-      ).timeout(const Duration(seconds: 12));
+      );
       if (!mounted) return;
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -255,9 +255,7 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
       headers['Authorization'] = 'Bearer $token';
     }
     try {
-      final res = await http
-          .get(Uri.parse(url), headers: headers)
-          .timeout(const Duration(seconds: 12));
+      final res = await apiGet(Uri.parse(url), headers: headers);
       if (res.statusCode == 200 && mounted) {
         final body = jsonDecode(res.body);
         final rawSections = body is List
@@ -308,10 +306,10 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
   Future<void> _fetchEnrollmentIdFromList(String token) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.enroll}';
     try {
-      final res = await http.get(
+      final res = await apiGet(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
-      ).timeout(const Duration(seconds: 12));
+      );
       if (res.statusCode == 200 && mounted) {
         final data = jsonDecode(res.body);
         final list = data is List ? data : (data['enrollments'] ?? data['data'] ?? []);
@@ -338,10 +336,10 @@ class _CourseDetailBodyState extends State<_CourseDetailBody> {
   Future<void> _fetchProgress(String token) async {
     final url = '${ApiConstants.baseUrl}${ApiConstants.enrollmentProgress(widget.courseId)}';
     try {
-      final res = await http.get(
+      final res = await apiGet(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
-      ).timeout(const Duration(seconds: 12));
+      );
       if (res.statusCode == 200 && mounted) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         // Backend wraps result inside "enrollment" key
