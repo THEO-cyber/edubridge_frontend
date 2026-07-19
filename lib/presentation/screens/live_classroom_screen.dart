@@ -7,6 +7,7 @@ import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show Helper;
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 // ── Data-channel message type keys ───────────────────────────────────────────
 const _kDraw = 'draw';
@@ -57,6 +58,11 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
   // ── Interactive state ──
   bool _showApplause = false;
   String? _spotlightId;
+  // Local view state (per-device, not broadcast):
+  //  _focusedId — whose video is shown big on THIS screen (tap to switch).
+  //  _pipOffset — top-left of the draggable picture-in-picture cluster.
+  String? _focusedId;
+  Offset? _pipOffset;
   final Set<String> _raisedHands = {};
   final List<_DrawingPoint?> _boardPoints = [];
 
@@ -114,6 +120,8 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
       await room.connect(widget.livekitUrl, widget.accessToken);
       await room.localParticipant?.setCameraEnabled(true);
       await room.localParticipant?.setMicrophoneEnabled(true);
+      // Keep the screen awake for the whole live class.
+      WakelockPlus.enable().catchError((_) {});
       if (mounted) setState(() { _room = room; _listener = listener; _connecting = false; });
     } catch (e) {
       await listener.dispose();
@@ -154,7 +162,10 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
         case _kBoardClose:
           if (!widget.isInstructor) setState(() { _boardOpen = false; _boardPoints.clear(); });
         case _kSpotlight:
-          setState(() => _spotlightId = msg['id'] as String?);
+          setState(() {
+            _spotlightId = msg['id'] as String?;
+            if (_spotlightId != null) _focusedId = _spotlightId; // bring them big here too
+          });
         case _kStateRequest:
           if (!widget.isInstructor) break;
           // Clear then replay the full board so the reconnecting student catches up.
@@ -270,7 +281,10 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
 
   void _spotlightParticipant(String id) {
     final next = _spotlightId == id ? null : id;
-    setState(() => _spotlightId = next);
+    setState(() {
+      _spotlightId = next;
+      if (next != null) _focusedId = next; // also enlarge locally
+    });
     _send({'type': _kSpotlight, 'id': next});
   }
 
@@ -287,6 +301,8 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
 
   @override
   void dispose() {
+    // Allow the screen to time out again once the class is over.
+    WakelockPlus.disable().catchError((_) {});
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _audio.dispose();
     _listener?.dispose();
@@ -316,6 +332,28 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
   Color _avatarColor(String name) {
     const p = [Color(0xFF37474F), Color(0xFF00695C), Color(0xFF283593), Color(0xFF4A148C), Color(0xFF006064)];
     return name.isEmpty ? p[0] : p[name.codeUnitAt(0) % p.length];
+  }
+
+  // ── Focus (who is shown big, locally) ──
+  void _setFocus(String id) {
+    if (!mounted) return;
+    setState(() => _focusedId = id);
+  }
+
+  Participant? _participantById(Room room, String? id) {
+    if (id == null) return null;
+    if (room.localParticipant?.identity == id) return room.localParticipant;
+    return room.remoteParticipants.values
+        .where((p) => p.identity == id)
+        .firstOrNull;
+  }
+
+  /// The participant to show big when the user hasn't picked one:
+  /// a broadcast spotlight, else the first remote (usually the instructor for
+  /// a student), else the local participant.
+  Participant _defaultFocus(Room room, List<RemoteParticipant> remotes) {
+    return _participantById(room, _spotlightId) ??
+        (remotes.isNotEmpty ? remotes.first : room.localParticipant!);
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────────
@@ -391,28 +429,31 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
     return Column(children: [
       _buildTopBar(total),
       Expanded(
-        child: Stack(children: [
-          // Main content
-          if (_boardOpen)
-            _WhiteboardOverlay(
-              points: List.unmodifiable(_boardPoints),
-              canDraw: widget.isInstructor,
-              onDraw: (pt) {
-                setState(() => _boardPoints.add(pt));
-                if (pt != null) _send({'type': _kDraw, 'x': pt.x, 'y': pt.y, 'c': pt.color.toARGB32(), 'w': pt.strokeWidth, 's': pt.isStart});
-              },
-              onClear: widget.isInstructor ? () { setState(() => _boardPoints.clear()); _send({'type': _kClear}); } : null,
-            )
-          else if (activeScreen != null)
-            _buildScreenView(activeScreen, screenOwner)
-          else
-            _buildVideoGrid(room, remotes),
-          // Local PiP — always visible (even over board, so instructor can see themselves)
-          if (!_boardOpen)
-            Positioned(right: 12, bottom: 12, child: _buildLocalPip(room)),
-          // Applause overlay
-          if (_showApplause) _buildApplauseOverlay(),
-        ]),
+        child: LayoutBuilder(builder: (ctx, constraints) {
+          final area = Size(constraints.maxWidth, constraints.maxHeight);
+          final sideMode = _boardOpen || activeScreen != null;
+          return Stack(children: [
+            // ── Main (big) view ──
+            if (_boardOpen)
+              _WhiteboardOverlay(
+                points: List.unmodifiable(_boardPoints),
+                canDraw: widget.isInstructor,
+                onDraw: (pt) {
+                  setState(() => _boardPoints.add(pt));
+                  if (pt != null) _send({'type': _kDraw, 'x': pt.x, 'y': pt.y, 'c': pt.color.toARGB32(), 'w': pt.strokeWidth, 's': pt.isStart});
+                },
+                onClear: widget.isInstructor ? () { setState(() => _boardPoints.clear()); _send({'type': _kClear}); } : null,
+              )
+            else if (activeScreen != null)
+              _buildScreenView(activeScreen, screenOwner)
+            else
+              _buildFocusedBig(room, remotes),
+            // ── Draggable picture-in-picture (move it anywhere; tap a tile to enlarge) ──
+            ..._buildDraggablePip(room, remotes, sideMode, area),
+            // ── Applause overlay ──
+            if (_showApplause) _buildApplauseOverlay(),
+          ]);
+        }),
       ),
       _buildControls(),
     ]);
@@ -451,49 +492,25 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
     );
   }
 
-  Widget _buildVideoGrid(Room room, List<RemoteParticipant> remotes) {
+  /// Big view = the focused participant (tap any PiP tile to switch who this is).
+  Widget _buildFocusedBig(Room room, List<RemoteParticipant> remotes) {
     if (remotes.isEmpty) {
-      return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.people_outline, color: Colors.white24, size: 72),
-        SizedBox(height: 16),
-        Text('Waiting for others to join…', style: TextStyle(color: Colors.white54, fontSize: 15)),
-      ]));
-    }
-
-    // Spotlight: one participant full-screen + others in strip
-    if (_spotlightId != null) {
-      final lit = remotes.where((p) => p.identity == _spotlightId).firstOrNull;
-      if (lit != null) {
-        final others = remotes.where((p) => p.identity != _spotlightId).toList();
-        return Column(children: [
-          Expanded(child: _participantTile(lit, spotlit: true)),
-          if (others.isNotEmpty)
-            SizedBox(
-              height: 78,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.all(3),
-                itemCount: others.length,
-                itemBuilder: (_, i) => SizedBox(width: 56, child: _participantTile(others[i])),
-              ),
+      final local = room.localParticipant;
+      return Stack(children: [
+        if (local != null) _participantTile(local, spotlit: true) else const SizedBox.expand(),
+        const Positioned(
+          left: 0, right: 0, bottom: 28,
+          child: IgnorePointer(
+            child: Center(
+              child: Text('Waiting for others to join…',
+                  style: TextStyle(color: Colors.white54, fontSize: 14)),
             ),
-        ]);
-      }
+          ),
+        ),
+      ]);
     }
-
-    if (remotes.length == 1) return _participantTile(remotes.first);
-    final cols = remotes.length <= 2 ? 1 : 2;
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: cols,
-        childAspectRatio: cols == 1 ? 16 / 9 : 3 / 4,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-      ),
-      padding: EdgeInsets.zero,
-      itemCount: remotes.length,
-      itemBuilder: (_, i) => _participantTile(remotes[i]),
-    );
+    final focused = _participantById(room, _focusedId) ?? _defaultFocus(room, remotes);
+    return _participantTile(focused, spotlit: true);
   }
 
   Widget _buildScreenView(VideoTrack track, String owner) {
@@ -525,7 +542,10 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
     final vid = camTrack;
 
     return GestureDetector(
-      onTap: (widget.isInstructor && handUp) ? () => _spotlightParticipant(name) : null,
+      // Tap to make this person the big view (locally). Instructors can
+      // long-press to spotlight them for everyone.
+      onTap: () => _setFocus(name),
+      onLongPress: widget.isInstructor ? () => _spotlightParticipant(name) : null,
       child: Container(
         color: spotlit ? const Color(0xFF0D1B3E) : const Color(0xFF181828),
         child: Stack(fit: StackFit.expand, children: [
@@ -572,8 +592,8 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
               ]),
             ),
           ),
-          // ── Spotlight badge ──
-          if (spotlit)
+          // ── Spotlight badge (only when actually spotlighted for everyone) ──
+          if (_spotlightId == name)
             Positioned(top: 6, right: 6,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -581,13 +601,13 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
                 child: const Text('SPOTLIGHT',
                     style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black)),
               )),
-          // ── Tap-to-call-on hint (instructor only) ──
-          if (widget.isInstructor && handUp && !spotlit)
+          // ── Call-on hint for a raised hand (instructor only) ──
+          if (widget.isInstructor && handUp && _spotlightId != name)
             Positioned(top: 6, left: 6,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(6)),
-                child: const Text('Tap to call on',
+                child: const Text('Hold to call on',
                     style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
               )),
         ]),
@@ -595,25 +615,107 @@ class _LiveClassroomScreenState extends State<LiveClassroomScreen> {
     );
   }
 
-  Widget _buildLocalPip(Room room) {
+  /// Draggable picture-in-picture cluster. Shows the participants NOT in the big
+  /// view (your own self-view during a screen share / whiteboard). Drag it
+  /// anywhere; tap a tile to make that person the big view.
+  List<Widget> _buildDraggablePip(
+      Room room, List<RemoteParticipant> remotes, bool sideMode, Size area) {
     final local = room.localParticipant;
-    final vid = (_camOn && local != null) ? _cameraTrack(local) : null;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: 96, height: 136,
-        color: const Color(0xFF222244),
-        child: Stack(children: [
-          vid != null
-              ? VideoTrackRenderer(vid)
-              : Center(child: Icon(
-                  _camOn ? Icons.person : Icons.videocam_off,
-                  color: Colors.white54, size: 28,
-                )),
-          if (!_micOn)
-            const Positioned(bottom: 4, right: 4,
-              child: _StatusIcon(Icons.mic_off, Colors.redAccent)),
-        ]),
+    final List<Participant> pip;
+    if (sideMode) {
+      pip = local != null ? [local] : const []; // your own self-view
+    } else if (remotes.isEmpty) {
+      pip = const []; // alone — you are already the big view
+    } else {
+      final focused = _participantById(room, _focusedId) ?? _defaultFocus(room, remotes);
+      pip = [
+        if (local != null && local.identity != focused.identity) local,
+        ...remotes.where((r) => r.identity != focused.identity),
+      ];
+    }
+    if (pip.isEmpty) return const [];
+
+    const w = 92.0, h = 128.0, gap = 8.0, margin = 12.0;
+    final shown = pip.take(3).toList();
+    final clusterH = shown.length * h + (shown.length - 1) * gap;
+
+    // Anchor bottom-right by default; keep it inside the video area.
+    final maxX = (area.width - w - margin).clamp(margin, double.infinity);
+    final maxY = (area.height - clusterH - margin).clamp(margin, double.infinity);
+    final base = _pipOffset ?? Offset(maxX, maxY);
+    final pos = Offset(base.dx.clamp(margin, maxX), base.dy.clamp(margin, maxY));
+
+    return [
+      Positioned(
+        left: pos.dx,
+        top: pos.dy,
+        child: GestureDetector(
+          onPanUpdate: (d) {
+            final cur = _pipOffset ?? Offset(maxX, maxY);
+            setState(() => _pipOffset = Offset(
+                  (cur.dx + d.delta.dx).clamp(margin, maxX),
+                  (cur.dy + d.delta.dy).clamp(margin, maxY),
+                ));
+          },
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            for (int i = 0; i < shown.length; i++) ...[
+              if (i > 0) const SizedBox(height: gap),
+              _pipTile(shown[i], w, h),
+            ],
+          ]),
+        ),
+      ),
+    ];
+  }
+
+  Widget _pipTile(Participant p, double w, double h) {
+    final isLocal = p.identity == _room?.localParticipant?.identity;
+    final cam = _cameraTrack(p);
+    final micOn = p.audioTrackPublications
+        .any((pub) => pub.source == TrackSource.microphone && pub.track != null);
+    return GestureDetector(
+      onTap: () => _setFocus(p.identity),
+      onLongPress:
+          (widget.isInstructor && !isLocal) ? () => _spotlightParticipant(p.identity) : null,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: const Color(0xFF222244),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Stack(fit: StackFit.expand, children: [
+            if (cam != null)
+              VideoTrackRenderer(cam)
+            else
+              Center(
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: _avatarColor(p.identity),
+                  child: Text(p.identity.isNotEmpty ? p.identity[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            Positioned(
+              left: 0, right: 0, bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                color: Colors.black54,
+                child: Row(children: [
+                  Expanded(
+                    child: Text(isLocal ? 'You' : p.identity,
+                        style: const TextStyle(color: Colors.white, fontSize: 9),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                  if (!micOn) const Icon(Icons.mic_off, color: Colors.redAccent, size: 11),
+                ]),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
